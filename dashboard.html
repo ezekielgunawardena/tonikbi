@@ -217,7 +217,7 @@ function renderTabs(fyGroups) {
     container.appendChild(ytdBtn);
   });
 
-  // Pace tab — always present, separated by a spacer
+  // Pace tab
   const spacer = document.createElement('span');
   spacer.style.cssText = 'flex:1;';
   container.appendChild(spacer);
@@ -229,6 +229,15 @@ function renderTabs(fyGroups) {
   paceBtn.style.cssText = 'background:#1a1a18;color:#f5f4f0;border-color:#1a1a18;';
   paceBtn.addEventListener('click', () => selectPeriod({ type: 'pace' }));
   container.appendChild(paceBtn);
+
+  // Inquiries tab
+  const inqBtn = document.createElement('button');
+  inqBtn.className = 'tab-btn';
+  inqBtn.textContent = '🔍 Inquiries';
+  inqBtn.dataset.type = 'inquiries';
+  inqBtn.style.cssText = 'background:#1D5C3A;color:#f5f4f0;border-color:#1D5C3A;';
+  inqBtn.addEventListener('click', () => selectPeriod({ type: 'inquiries' }));
+  container.appendChild(inqBtn);
 }
 
 function selectPeriod(period) {
@@ -239,21 +248,17 @@ function selectPeriod(period) {
       ? btn.dataset.type === 'month' && +btn.dataset.year === period.year && +btn.dataset.month === period.month
       : period.type === 'ytd'
       ? btn.dataset.type === 'ytd' && +btn.dataset.fy === period.fyYear
-      : btn.dataset.type === 'pace';
+      : btn.dataset.type === period.type;
     if (match) btn.classList.add('active');
   });
 
-  // Toggle views
-  const isPace = period.type === 'pace';
-  document.getElementById('perf-view').style.display = isPace ? 'none' : '';
-  document.getElementById('pace-view').style.display = isPace ? '' : 'none';
+  document.getElementById('perf-view').style.display       = period.type === 'month' || period.type === 'ytd' ? '' : 'none';
+  document.getElementById('pace-view').style.display       = period.type === 'pace'       ? '' : 'none';
+  document.getElementById('inquiries-view').style.display  = period.type === 'inquiries'  ? '' : 'none';
 
-  if (isPace) {
-    renderPace();
-  } else {
-    renderDashboard(period);
-  }
-
+  if (period.type === 'pace')       renderPace();
+  else if (period.type === 'inquiries') renderInquiries();
+  else renderDashboard(period);
 }
 
 // Aggregate property stats for a period
@@ -550,7 +555,6 @@ async function init() {
       <!-- PACE VIEW -->
       <div id="pace-view" style="display:none;">
         <div class="section-header">Booking pace — weekly room nights by booking created date</div>
-
         <div class="chart-box" style="margin-bottom:1.25rem;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:0.75rem;">
             <div class="chart-title" style="margin:0;">Weekly room nights booked</div>
@@ -567,10 +571,60 @@ async function init() {
           </div>
           <div class="chart-wrap" style="height:328px;"><canvas id="paceChart"></canvas></div>
         </div>
-
         <div class="section-header">Pace detail table</div>
         <p class="scroll-hint">← Scroll to see all columns</p>
         <div class="table-scroll"><table class="data-table" id="paceTable"></table></div>
+      </div>
+
+      <!-- INQUIRIES VIEW -->
+      <div id="inquiries-view" style="display:none;">
+        <div class="section-header">Inquiry tracker — live from Asana via Google Sheets</div>
+
+        <!-- Summary KPI cards -->
+        <div class="metric-grid" id="inq-metrics" style="margin-bottom:1.25rem;grid-template-columns:repeat(2,1fr);"></div>
+
+        <!-- Dynamic widgets -->
+        <div id="dynamic-widgets"></div>
+
+        <!-- Charts row -->
+        <div class="chart-stack" style="margin-bottom:1.25rem;">
+          <div class="chart-box">
+            <div class="chart-title">Inquiries by property</div>
+            <div class="chart-wrap" style="height:220px;"><canvas id="inqByPropChart"></canvas></div>
+          </div>
+          <div class="chart-box">
+            <div class="chart-title">Inquiries by source</div>
+            <div class="chart-wrap" style="height:220px;"><canvas id="inqBySourceChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="chart-stack single" style="margin-bottom:1.25rem;">
+          <div class="chart-box">
+            <div class="chart-title">Inquiries by status</div>
+            <div class="chart-wrap" style="height:200px;"><canvas id="inqByStatusChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:0.875rem;">
+          <span style="font-size:11px;color:#888780;">Filter:</span>
+          <select id="inq-filter-prop" onchange="renderInquiries()" style="font-size:11px;padding:4px 8px;border:1px solid #d3d1c7;border-radius:5px;background:#fff;">
+            <option value="all">All properties</option>
+            <option>KAHA</option>
+            <option>Villa Sayura</option>
+            <option>Garfield Bungalow</option>
+            <option>Garfield Cottage</option>
+          </select>
+          <select id="inq-filter-status" onchange="renderInquiries()" style="font-size:11px;padding:4px 8px;border:1px solid #d3d1c7;border-radius:5px;background:#fff;">
+            <option value="all">All statuses</option>
+          </select>
+          <span id="inq-last-updated" style="font-size:10px;color:#b4b2a9;margin-left:auto;"></span>
+        </div>
+
+        <!-- Detail table -->
+        <div class="section-header">All inquiries</div>
+        <p class="scroll-hint">← Scroll to see all columns</p>
+        <div class="table-scroll"><table class="data-table" id="inqTable"></table></div>
       </div>
     `;
 
@@ -670,6 +724,242 @@ function setPaceProperty(prop) {
 }
 
 init();
+
+// ── Inquiries ─────────────────────────────────────────────────────────────────
+const SHEETS_CSV_URL = 'https://script.google.com/macros/s/AKfycbw08zBzu_dl66FF460NFvemEtYy7smqKJNoxdDhWdnNm5101sAlPITauwuFWO-zM46_/exec';
+let inqData = null;
+let inqCharts = {};
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    // Handle quoted commas
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; continue; }
+      if (line[i] === ',' && !inQ) { cols.push(cur.trim()); cur = ''; continue; }
+      cur += line[i];
+    }
+    cols.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = cols[i] || '');
+    return obj;
+  }).filter(r => r['Name'] && r['Name'].trim());
+}
+
+function countBy(rows, field) {
+  const counts = {};
+  rows.forEach(r => {
+    const v = r[field] || 'Unknown';
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  return counts;
+}
+
+let inqByPropChart, inqBySourceChart, inqByStatusChart;
+
+async function renderInquiries() {
+  const metricsEl = document.getElementById('inq-metrics');
+  const tableEl   = document.getElementById('inqTable');
+  if (!metricsEl) return;
+
+  if (!inqData) {
+    metricsEl.innerHTML = '<div style="font-size:12px;color:#73726c;padding:1rem 0;">Loading inquiries…</div>';
+    try {
+      const resp = await fetch(SHEETS_CSV_URL);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const json = await resp.json();
+      inqData = json.filter(r => r['Name'] && String(r['Name']).trim());
+      document.getElementById('inq-last-updated').textContent = 'Last fetched: ' + new Date().toLocaleTimeString('en-GB');
+
+      // Populate status filter
+      const statuses = [...new Set(inqData.map(r => r['Inquiry Status']).filter(Boolean))];
+      const statusSel = document.getElementById('inq-filter-status');
+      statuses.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s; opt.textContent = s;
+        statusSel.appendChild(opt);
+      });
+    } catch(e) {
+      metricsEl.innerHTML = `<div style="font-size:12px;color:#993C1D;padding:1rem 0;">Could not load inquiries: ${e.message}</div>`;
+      return;
+    }
+  }
+
+  // Apply filters
+  const propFilter   = document.getElementById('inq-filter-prop')?.value || 'all';
+  const statusFilter = document.getElementById('inq-filter-status')?.value || 'all';
+
+  let rows = inqData;
+  if (propFilter !== 'all')   rows = rows.filter(r => r['Property'] === propFilter);
+  if (statusFilter !== 'all') rows = rows.filter(r => r['Inquiry Status'] === statusFilter);
+
+  // KPI metrics — use Inquiry Date for volume
+  const total      = rows.length;
+  const now        = new Date();
+  const thisMonth  = rows.filter(r => {
+    const d = new Date(r['Inquiry Date']);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const converted  = rows.filter(r => r['Inquiry Status']?.toLowerCase().includes('confirm') || r['Inquiry Status']?.toLowerCase().includes('convert') || r['Inquiry Status']?.toLowerCase().includes('book')).length;
+  const ongoing    = rows.filter(r => r['Inquiry Status']?.toLowerCase().includes('ongoing')).length;
+  const convRate   = total > 0 ? ((converted / total) * 100).toFixed(1) : '0.0';
+  const totalGuests = rows.reduce((s, r) => s + (parseInt(r['No of guests']) || 0), 0);
+
+  metricsEl.innerHTML = [
+    { label: 'Total inquiries', v: total, sub: 'All time' },
+    { label: 'This month', v: thisMonth, sub: new Date().toLocaleString('en-GB', { month: 'long', year: 'numeric' }) },
+    { label: 'Ongoing', v: ongoing, sub: 'Active inquiries' },
+    { label: 'Confirmed', v: converted, sub: `${convRate}% conversion` },
+    { label: 'Total guests', v: totalGuests, sub: 'Across all inquiries' },
+  ].map(c => `<div class="metric-card">
+    <div class="metric-label">${c.label}</div>
+    <div class="metric-value">${c.v}</div>
+    <div class="metric-sub">${c.sub}</div>
+  </div>`).join('');
+
+  // ── Dynamic widgets ────────────────────────────────────────────────────────
+  const dynEl = document.getElementById('dynamic-widgets');
+  if (dynEl) {
+    dynEl.innerHTML = '';
+    const { data: widgets } = await sb.from('dashboard_widgets')
+      .select('*').eq('active', true).order('sort_order');
+
+    if (widgets?.length) {
+      // Group into rows of 2 for charts, full width for tables
+      const widgetCharts = {};
+      for (const w of widgets) {
+        const counts = {};
+        rows.forEach(r => {
+          const v = String(r[w.field] || 'Unknown').trim() || 'Unknown';
+          if (w.aggregation === 'count') counts[v] = (counts[v] || 0) + 1;
+          else if (w.aggregation === 'sum') counts[v] = (counts[v] || 0) + (parseFloat(r[w.field]) || 0);
+          else counts[v] = 1; // unique — just presence
+        });
+
+        if (w.widget_type === 'kpi') {
+          const val = w.aggregation === 'count' ? rows.length
+            : w.aggregation === 'unique' ? Object.keys(counts).length
+            : Object.values(counts).reduce((a,b) => a+b, 0);
+          dynEl.innerHTML += `<div class="metric-card" style="margin-bottom:1rem;">
+            <div class="metric-label">${w.title}</div>
+            <div class="metric-value">${val}</div>
+            <div class="metric-sub">${w.field}</div>
+          </div>`;
+
+        } else if (w.widget_type === 'table') {
+          const uniqueVals = [...new Set(rows.map(r => String(r[w.field] || '').trim()))].filter(Boolean).sort();
+          dynEl.innerHTML += `
+            <div class="section-header" style="margin-top:1rem;">${w.title}</div>
+            <div class="table-scroll" style="margin-bottom:1.25rem;">
+              <table class="data-table">
+                <thead><tr><th style="text-align:left;">${w.field}</th><th>Count</th></tr></thead>
+                <tbody>${uniqueVals.map(v => `<tr><td>${v}</td><td>${counts[v] || 0}</td></tr>`).join('')}</tbody>
+              </table>
+            </div>`;
+
+        } else {
+          // Chart widget
+          const canvasId = 'dynChart_' + w.id.replace(/-/g,'');
+          dynEl.innerHTML += `
+            <div class="chart-box" style="margin-bottom:1.25rem;">
+              <div class="chart-title">${w.title}</div>
+              <div class="chart-wrap" style="height:240px;"><canvas id="${canvasId}"></canvas></div>
+            </div>`;
+          widgetCharts[canvasId] = { w, counts };
+        }
+      }
+
+      // Render chart widgets after DOM is updated
+      setTimeout(() => {
+        const COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#888780','#E06C9F','#2C7BB6','#6BBE45','#F28E2B'];
+        Object.entries(widgetCharts).forEach(([canvasId, { w, counts }]) => {
+          const canvas = document.getElementById(canvasId);
+          if (!canvas) return;
+          const labels = Object.keys(counts);
+          const data   = Object.values(counts);
+          const colors = COLORS.slice(0, labels.length);
+          const type   = w.widget_type === 'doughnut' ? 'doughnut' : w.widget_type === 'line' ? 'line' : 'bar';
+          new Chart(canvas, {
+            type,
+            data: { labels, datasets: [{ label: w.title, data,
+              backgroundColor: type === 'line' ? colors[0] + '20' : colors,
+              borderColor: type === 'line' ? colors[0] : colors,
+              borderWidth: type === 'line' ? 2 : 1,
+              fill: type === 'line', tension: 0.3,
+              pointBackgroundColor: type === 'line' ? colors[0] : undefined,
+            }]},
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              layout: { padding: { top: 16 } },
+              plugins: {
+                legend: { display: type === 'doughnut', position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                datalabels: {
+                  display: true, anchor: 'end', align: type === 'doughnut' ? 'center' : 'end',
+                  font: { size: 9, weight: '600' }, color: type === 'doughnut' ? '#fff' : '#444',
+                  formatter: (v, ctx) => {
+                    if (type === 'doughnut') {
+                      const t = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                      return t > 0 ? Math.round(v/t*100) + '%' : '';
+                    }
+                    return v === 0 ? '' : v;
+                  }
+                }
+              },
+              scales: type === 'doughnut' ? {} : {
+                x: { ticks: { font: { size: 9 }, maxRotation: 30 } },
+                y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+              }
+            }
+          });
+        });
+      }, 50);
+    }
+  }
+  const mkDoughnut = (id, counts) => {
+    const labels = Object.keys(counts);
+    const data   = Object.values(counts);
+    if (inqCharts[id]) inqCharts[id].destroy();
+    inqCharts[id] = new Chart(document.getElementById(id), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: CHART_COLORS.slice(0, labels.length), borderWidth: 1 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+          datalabels: { display: true, formatter: (v, ctx) => {
+            const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+            return total > 0 ? Math.round(v/total*100) + '%' : '';
+          }, color: '#fff', font: { size: 10, weight: '600' } }
+        }
+      }
+    });
+  };
+
+  mkDoughnut('inqByPropChart',    countBy(rows, 'Property'));
+  mkDoughnut('inqBySourceChart',  countBy(rows, 'Inquiry Source'));
+  mkDoughnut('inqByStatusChart',  countBy(rows, 'Inquiry Status'));
+
+  // Table
+  const headers = ['Name','Property','Status','Source','Inquiry Date','Check In','Check Out','Guests','Nationality','Payment'];
+  const fieldMap = { 'Name':'Name','Property':'Property','Status':'Inquiry Status','Source':'Inquiry Source','Inquiry Date':'Inquiry Date','Check In':'Check In','Check Out':'Check Out','Guests':'No of guests','Nationality':'Nationality','Payment':'Payment Status' };
+
+  const statusColors = { ongoing:'#185FA5', confirmed:'#1D9E75', cancelled:'#993C1D', lost:'#993C1D', converted:'#1D9E75', booked:'#1D9E75' };
+  const getStatusColor = s => {
+    const key = Object.keys(statusColors).find(k => s?.toLowerCase().includes(k));
+    return key ? statusColors[key] : '#73726c';
+  };
+
+  tableEl.innerHTML = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(r => `<tr>${headers.map(h => {
+      const v = r[fieldMap[h]] || '–';
+      if (h === 'Status') return `<td style="color:${getStatusColor(v)};font-weight:500;">${v}</td>`;
+      return `<td>${v}</td>`;
+    }).join('')}</tr>`).join('')
+  }</tbody>`;
+}
 
 let resizeTimer;
 window.addEventListener('resize', () => {

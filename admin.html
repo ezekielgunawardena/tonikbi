@@ -209,6 +209,7 @@
         <button class="nav-tab active" onclick="showTab('entry')">Add / Edit Month</button>
         <button class="nav-tab" onclick="showTab('records')">View All Records</button>
         <button class="nav-tab" onclick="showTab('pace')">📈 Pace</button>
+        <button class="nav-tab" onclick="showTab('widgets')">🧩 Widgets</button>
         <button class="nav-tab" onclick="showTab('settings')" style="margin-left:auto;">⚙ Settings</button>
       </div>
 
@@ -235,6 +236,15 @@
             <div>
               <div class="home-card-title">View All Records</div>
               <div class="home-card-desc">Browse and edit all previously saved monthly records.</div>
+            </div>
+          </button>
+          <button class="home-card" onclick="showTab('widgets')">
+            <div class="home-card-icon blue">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </div>
+            <div>
+              <div class="home-card-title">Widget Builder</div>
+              <div class="home-card-desc">Create and manage custom widgets for the Inquiries dashboard.</div>
             </div>
           </button>
           <button class="home-card" onclick="showTab('pace')">
@@ -321,6 +331,55 @@
 
         <div class="section-header" style="margin-top:1.5rem;">Recent weeks</div>
         <div id="pace-recent" class="loading-overlay">Loading…</div>
+      </div>
+
+      <!-- WIDGETS TAB -->
+      <div id="tab-widgets" style="display:none;">
+
+        <div class="section-header">Create a new widget</div>
+        <div class="settings-card">
+          <div class="settings-row" style="flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
+            <div class="field" style="flex:2;min-width:160px;">
+              <label for="w-title">Widget title</label>
+              <input type="text" id="w-title" placeholder="e.g. Inquiries by Property" />
+            </div>
+            <div class="field" style="flex:1;min-width:130px;">
+              <label for="w-type">Widget type</label>
+              <select id="w-type" onchange="updateWidgetFieldOptions()">
+                <option value="kpi">KPI Card</option>
+                <option value="bar">Bar Chart</option>
+                <option value="line">Line Chart</option>
+                <option value="doughnut">Doughnut Chart</option>
+                <option value="table">Data Table</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row" style="flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
+            <div class="field" style="flex:2;min-width:160px;">
+              <label for="w-field">Group / count by field</label>
+              <select id="w-field">
+                <option value="">— load fields —</option>
+              </select>
+            </div>
+            <div class="field" id="w-agg-wrap" style="flex:1;min-width:130px;">
+              <label for="w-agg">Aggregation</label>
+              <select id="w-agg">
+                <option value="count">Count</option>
+                <option value="sum">Sum</option>
+                <option value="unique">Unique values</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="loadSheetFields()">Load fields from sheet</button>
+            <button class="btn btn-primary" onclick="saveWidget()">Add widget</button>
+            <span id="w-status" style="font-size:11px;color:#73726c;"></span>
+          </div>
+        </div>
+
+        <div class="section-header" style="margin-top:1.5rem;">Current widgets <span id="widget-count" style="font-weight:400;color:#888780;"></span></div>
+        <div id="widget-list" class="loading-overlay">Loading…</div>
+
       </div>
 
       <!-- SETTINGS TAB -->
@@ -492,7 +551,7 @@ function showTab(tab) {
     );
   });
 
-  ['tab-home','tab-entry','tab-records','tab-pace','tab-settings'].forEach(id => {
+  ['tab-home','tab-entry','tab-records','tab-pace','tab-widgets','tab-settings'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = id === `tab-${tab}` ? '' : 'none';
   });
@@ -500,6 +559,7 @@ function showTab(tab) {
   if (tab === 'records')  loadAllRecords();
   if (tab === 'settings') loadSettings();
   if (tab === 'pace')     loadPaceRecent();
+  if (tab === 'widgets')  loadWidgets();
   if (tab === 'entry' && document.getElementById('entry-form')) loadMonth();
 }
 
@@ -789,6 +849,122 @@ async function savePaceWeek() {
   if (error) { showToast('Error: ' + error.message, true); return; }
   showToast('Pace saved ✓');
   setTimeout(() => showTab('home'), 800);
+}
+
+// ── Widget Builder ────────────────────────────────────────────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw08zBzu_dl66FF460NFvemEtYy7smqKJNoxdDhWdnNm5101sAlPITauwuFWO-zM46_/exec';
+let sheetFields = [];
+
+const WIDGET_TYPE_LABELS = { kpi:'KPI Card', bar:'Bar Chart', line:'Line Chart', doughnut:'Doughnut', table:'Table' };
+const WIDGET_TYPE_ICONS  = { kpi:'🔢', bar:'📊', line:'📈', doughnut:'🍩', table:'📋' };
+
+async function loadSheetFields() {
+  const status = document.getElementById('w-status');
+  status.textContent = 'Loading fields…';
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL);
+    const json = await resp.json();
+    if (!json.length) throw new Error('No data returned');
+    sheetFields = Object.keys(json[0]).filter(k => k.trim());
+    const sel = document.getElementById('w-field');
+    sel.innerHTML = sheetFields.map(f => `<option value="${f}">${f}</option>`).join('');
+    status.textContent = `✓ ${sheetFields.length} fields loaded`;
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+function updateWidgetFieldOptions() {
+  const type = document.getElementById('w-type').value;
+  const aggWrap = document.getElementById('w-agg-wrap');
+  aggWrap.style.display = type === 'table' ? 'none' : '';
+}
+
+async function saveWidget() {
+  const title = document.getElementById('w-title').value.trim();
+  const type  = document.getElementById('w-type').value;
+  const field = document.getElementById('w-field').value;
+  const agg   = document.getElementById('w-agg').value;
+  const status = document.getElementById('w-status');
+
+  if (!title) { showToast('Please enter a widget title.', true); return; }
+  if (!field) { showToast('Please load and select a field first.', true); return; }
+
+  // Get current max sort_order
+  const { data: existing } = await sb.from('dashboard_widgets').select('sort_order').order('sort_order', { ascending: false }).limit(1);
+  const nextOrder = existing?.length ? (existing[0].sort_order + 1) : 0;
+
+  const { error } = await sb.from('dashboard_widgets').insert({
+    title, widget_type: type, field, aggregation: agg, sort_order: nextOrder
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+
+  document.getElementById('w-title').value = '';
+  showToast('Widget added ✓');
+  loadWidgets();
+}
+
+async function loadWidgets() {
+  const el = document.getElementById('widget-list');
+  el.innerHTML = '<div class="loading-overlay">Loading…</div>';
+
+  const { data, error } = await sb.from('dashboard_widgets')
+    .select('*').order('sort_order');
+
+  if (error) { el.innerHTML = `<div style="color:#993C1D;font-size:12px;">${error.message}</div>`; return; }
+
+  document.getElementById('widget-count').textContent = `(${data?.length || 0})`;
+
+  if (!data?.length) {
+    el.innerHTML = '<div class="loading-overlay">No widgets yet — create your first one above.</div>';
+    return;
+  }
+
+  el.innerHTML = '<div class="records-list">' + data.map(w => `
+    <div class="record-row" id="widget-row-${w.id}">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap;">
+        <span style="font-size:20px;">${WIDGET_TYPE_ICONS[w.widget_type] || '📊'}</span>
+        <div>
+          <div class="record-info">${w.title}</div>
+          <div class="record-meta">${WIDGET_TYPE_LABELS[w.widget_type]} · Field: <strong>${w.field}</strong> · ${w.aggregation}</div>
+        </div>
+      </div>
+      <div class="record-actions" style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}', ${w.sort_order}, -1)" title="Move up">↑</button>
+        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}', ${w.sort_order}, 1)" title="Move down">↓</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleWidget('${w.id}', ${w.active})">${w.active ? 'Hide' : 'Show'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteWidget('${w.id}')">Delete</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+async function deleteWidget(id) {
+  if (!confirm('Delete this widget?')) return;
+  const { error } = await sb.from('dashboard_widgets').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('Widget deleted');
+  loadWidgets();
+}
+
+async function toggleWidget(id, currentActive) {
+  const { error } = await sb.from('dashboard_widgets').update({ active: !currentActive }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast(currentActive ? 'Widget hidden' : 'Widget shown');
+  loadWidgets();
+}
+
+async function moveWidget(id, currentOrder, direction) {
+  const { data: all } = await sb.from('dashboard_widgets').select('id,sort_order').order('sort_order');
+  const idx = all.findIndex(w => w.id === id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= all.length) return;
+  const swapWith = all[swapIdx];
+  await Promise.all([
+    sb.from('dashboard_widgets').update({ sort_order: swapWith.sort_order }).eq('id', id),
+    sb.from('dashboard_widgets').update({ sort_order: currentOrder }).eq('id', swapWith.id),
+  ]);
+  loadWidgets();
 }
 
 // ── Clear YTD override ────────────────────────────────────────────────────────
