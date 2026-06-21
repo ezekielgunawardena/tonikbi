@@ -163,6 +163,7 @@
     .settings-list-item { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#f9f8f5; border:1px solid #e8e7e1; border-radius:6px; font-size:12px; gap:8px; }
     .prop-badge { font-size:10px; background:#fff; border:1px solid #e8e7e1; border-radius:4px; padding:2px 8px; color:#73726c; }
     .section-subheader { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:#b4b2a9; margin-bottom:0.5rem; }
+    #preview-modal.open { display:flex !important; }
 
     @media (min-width:640px) {
       .stat-grid { grid-template-columns:repeat(4, 1fr); }
@@ -338,40 +339,79 @@
 
         <div class="section-header">Create a new widget</div>
         <div class="settings-card">
-          <div class="settings-row" style="flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <div class="field" style="flex:2;min-width:160px;">
+
+          <!-- Row 1: Title + Type -->
+          <div class="settings-row" style="margin-bottom:1rem;">
+            <div class="field" style="flex:2;">
               <label for="w-title">Widget title</label>
               <input type="text" id="w-title" placeholder="e.g. Inquiries by Property" />
             </div>
-            <div class="field" style="flex:1;min-width:130px;">
+            <div class="field" style="flex:1;">
               <label for="w-type">Widget type</label>
-              <select id="w-type" onchange="updateWidgetFieldOptions()">
+              <select id="w-type" onchange="onWidgetTypeChange()">
                 <option value="kpi">KPI Card</option>
                 <option value="bar">Bar Chart</option>
                 <option value="line">Line Chart</option>
+                <option value="timeseries">Time-Series Line (by date)</option>
                 <option value="doughnut">Doughnut Chart</option>
                 <option value="table">Data Table</option>
               </select>
             </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary btn-sm" onclick="loadSheetFields()">Load fields</button>
+            </div>
           </div>
-          <div class="settings-row" style="flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <div class="field" style="flex:2;min-width:160px;">
-              <label for="w-field">Group / count by field</label>
-              <select id="w-field">
-                <option value="">— load fields —</option>
+
+          <!-- Row 2: X axis + Y axis -->
+          <div class="settings-row" style="margin-bottom:1rem;" id="w-axis-row">
+            <div class="field" style="flex:1;" id="w-x-wrap">
+              <label for="w-x">X axis — group by</label>
+              <select id="w-x"><option value="">— select field —</option></select>
+            </div>
+            <div class="field" style="flex:1;" id="w-cluster-wrap" style="display:none;">
+              <label for="w-cluster">Date clustering</label>
+              <select id="w-cluster">
+                <option value="day">By day</option>
+                <option value="week" selected>By week</option>
+                <option value="month">By month</option>
               </select>
             </div>
-            <div class="field" id="w-agg-wrap" style="flex:1;min-width:130px;">
+            <div class="field" style="flex:1;" id="w-y-wrap">
+              <label for="w-y">Y axis — measure</label>
+              <select id="w-y">
+                <option value="count">Count of records</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1;" id="w-agg-wrap">
               <label for="w-agg">Aggregation</label>
               <select id="w-agg">
                 <option value="count">Count</option>
                 <option value="sum">Sum</option>
-                <option value="unique">Unique values</option>
               </select>
             </div>
           </div>
+
+          <!-- Row 3: Date filter -->
+          <div class="section-subheader" style="margin-bottom:0.5rem;">Date filter (uses Inquiry Date)</div>
+          <div class="settings-row" style="margin-bottom:1rem;">
+            <div class="field">
+              <label for="w-date-from">From date</label>
+              <input type="date" id="w-date-from" />
+            </div>
+            <div class="field">
+              <label for="w-date-to">To date</label>
+              <input type="date" id="w-date-to" />
+            </div>
+          </div>
+
+          <!-- Row 4: Field filters -->
+          <div class="section-subheader" style="margin-bottom:0.5rem;">Field filters</div>
+          <div id="w-filters"></div>
+          <button class="btn btn-secondary btn-sm" onclick="addFilterRow()" style="margin-bottom:1rem;">+ Add filter</button>
+
+          <!-- Actions -->
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="loadSheetFields()">Load fields from sheet</button>
             <button class="btn btn-primary" onclick="saveWidget()">Add widget</button>
             <span id="w-status" style="font-size:11px;color:#73726c;"></span>
           </div>
@@ -488,11 +528,29 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- WIDGET PREVIEW MODAL -->
+<div id="preview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e8e7e1;">
+      <div style="font-size:14px;font-weight:600;color:#1a1a18;" id="preview-title">Widget Preview</div>
+      <button onclick="closePreview()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#73726c;line-height:1;">✕</button>
+    </div>
+    <div style="padding:1.5rem;" id="preview-body">
+      <div style="text-align:center;color:#73726c;font-size:13px;">Loading preview…</div>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL  = 'https://rmnufhsfuaycpkdzwfgj.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbnVmaHNmdWF5Y3BrZHp3ZmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Njc3NjksImV4cCI6MjA5NzU0Mzc2OX0.rnBgL4fAowZrimTP3LZMSZwcOBcTW-kraPnupqyidU4';
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  db: { schema: 'public' },
+  global: { headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' } }
+});
+
+let appInitialised = false;
 
 const PROPERTIES = [
   { name:'KAHA',              type:'Management' },
@@ -519,15 +577,20 @@ async function signIn() {
 
 async function signOut() {
   await sb.auth.signOut();
+  appInitialised = false;
   document.getElementById('app-screen').classList.remove('visible');
   document.getElementById('auth-screen').classList.remove('hidden');
 }
 
 sb.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' && session) showApp(session.user.email);
+  if (event === 'SIGNED_IN' && session && !appInitialised) {
+    showApp(session.user.email);
+  }
 });
 
 function showApp(email) {
+  if (appInitialised) return;
+  appInitialised = true;
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('app-screen').classList.add('visible');
   if (email) {
@@ -854,6 +917,7 @@ async function savePaceWeek() {
 // ── Widget Builder ────────────────────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw08zBzu_dl66FF460NFvemEtYy7smqKJNoxdDhWdnNm5101sAlPITauwuFWO-zM46_/exec';
 let sheetFields = [];
+let sheetFieldValues = {}; // field -> unique values for filter dropdowns
 
 const WIDGET_TYPE_LABELS = { kpi:'KPI Card', bar:'Bar Chart', line:'Line Chart', doughnut:'Doughnut', table:'Table' };
 const WIDGET_TYPE_ICONS  = { kpi:'🔢', bar:'📊', line:'📈', doughnut:'🍩', table:'📋' };
@@ -866,52 +930,315 @@ async function loadSheetFields() {
     const json = await resp.json();
     if (!json.length) throw new Error('No data returned');
     sheetFields = Object.keys(json[0]).filter(k => k.trim());
-    const sel = document.getElementById('w-field');
-    sel.innerHTML = sheetFields.map(f => `<option value="${f}">${f}</option>`).join('');
+
+    // Cache unique values per field for filter dropdowns
+    sheetFields.forEach(f => {
+      sheetFieldValues[f] = [...new Set(json.map(r => String(r[f] || '').trim()).filter(Boolean))].sort();
+    });
+
+    const opts = sheetFields.map(f => `<option value="${f}">${f}</option>`).join('');
+    document.getElementById('w-x').innerHTML = '<option value="">— select field —</option>' + opts;
+
+    // Y axis: count + numeric fields
+    const yOpts = '<option value="count">Count of records</option>' +
+      sheetFields.map(f => `<option value="${f}">${f}</option>`).join('');
+    document.getElementById('w-y').innerHTML = yOpts;
+
+    // Refresh any existing filter rows
+    document.querySelectorAll('.w-filter-field').forEach(sel => {
+      const cur = sel.value;
+      sel.innerHTML = opts;
+      sel.value = cur;
+    });
+
     status.textContent = `✓ ${sheetFields.length} fields loaded`;
   } catch(e) {
     status.textContent = 'Error: ' + e.message;
   }
 }
 
-function updateWidgetFieldOptions() {
+function onWidgetTypeChange() {
   const type = document.getElementById('w-type').value;
-  const aggWrap = document.getElementById('w-agg-wrap');
-  aggWrap.style.display = type === 'table' ? 'none' : '';
+  document.getElementById('w-x-wrap').style.display      = type === 'kpi' ? 'none' : '';
+  document.getElementById('w-cluster-wrap').style.display = type === 'timeseries' ? '' : 'none';
+  document.getElementById('w-agg-wrap').style.display     = type === 'table' ? 'none' : '';
+  // For time-series, auto-set x to Inquiry Date
+  if (type === 'timeseries' && document.getElementById('w-x').options.length > 1) {
+    const sel = document.getElementById('w-x');
+    const opt = [...sel.options].find(o => o.value === 'Inquiry Date');
+    if (opt) sel.value = 'Inquiry Date';
+  }
+}
+
+// ── Date clustering helper ────────────────────────────────────────────────────
+function clusterDate(dateStr, unit) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return 'Unknown';
+  if (unit === 'day') return d.toISOString().slice(0,10);
+  if (unit === 'month') return d.toLocaleString('en-GB', { month:'short', year:'numeric' });
+  if (unit === 'week') {
+    // ISO week start (Monday)
+    const day = d.getDay() || 7;
+    const mon = new Date(d); mon.setDate(d.getDate() - day + 1);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const fmt = (dt) => dt.getDate() + ' ' + dt.toLocaleString('en-GB',{month:'short'});
+    return fmt(mon) + ' – ' + fmt(sun);
+  }
+  return dateStr;
+}
+
+// ── Widget preview ────────────────────────────────────────────────────────────
+let previewChartInstance = null;
+let cachedSheetData = null;
+
+async function previewWidget(id) {
+  const modal = document.getElementById('preview-modal');
+  const body  = document.getElementById('preview-body');
+  const titleEl = document.getElementById('preview-title');
+  modal.classList.add('open');
+  body.innerHTML = '<div style="text-align:center;color:#73726c;font-size:13px;padding:2rem;">Loading data…</div>';
+
+  // Fetch widget config
+  const { data: w, error } = await sb.from('dashboard_widgets').select('*').eq('id', id).single();
+  if (error || !w) { body.innerHTML = '<div style="color:#993C1D;">Could not load widget.</div>'; return; }
+  titleEl.textContent = '🔍 Preview — ' + w.title;
+
+  // Fetch sheet data if not cached
+  if (!cachedSheetData) {
+    try {
+      const resp = await fetch(APPS_SCRIPT_URL);
+      cachedSheetData = await resp.json();
+    } catch(e) {
+      body.innerHTML = `<div style="color:#993C1D;font-size:12px;">Could not load sheet data: ${e.message}</div>`;
+      return;
+    }
+  }
+
+  // Apply filters
+  const filters = (typeof w.filters === 'string' ? JSON.parse(w.filters) : w.filters) || [];
+  let rows = cachedSheetData.filter(r => {
+    if (w.date_from || w.date_to) {
+      const d = new Date(r['Inquiry Date']);
+      if (w.date_from && d < new Date(w.date_from)) return false;
+      if (w.date_to   && d > new Date(w.date_to))   return false;
+    }
+    return filters.every(f => {
+      const val = String(r[f.field]||'').trim().toLowerCase();
+      const fv  = String(f.value||'').toLowerCase();
+      if (f.operator === 'equals')     return val === fv;
+      if (f.operator === 'not_equals') return val !== fv;
+      if (f.operator === 'contains')   return val.includes(fv);
+      return true;
+    });
+  });
+
+  const filterSummary = filters.length
+    ? '<div style="font-size:11px;color:#73726c;margin-bottom:1rem;">Filters: ' + filters.map(f=>`<strong>${f.field}</strong> ${f.operator} "${f.value}"`).join(' AND ') + '</div>'
+    : '';
+  const dateSummary = (w.date_from||w.date_to)
+    ? `<div style="font-size:11px;color:#73726c;margin-bottom:0.5rem;">Date: ${w.date_from||'any'} → ${w.date_to||'any'}</div>` : '';
+
+  // Aggregate
+  const counts = {};
+  const isTimeSeries = w.widget_type === 'timeseries';
+  const cluster = w.date_cluster || 'week';
+  const xField = isTimeSeries ? 'Inquiry Date' : w.x_field;
+
+  if (xField) {
+    rows.forEach(r => {
+      const key = isTimeSeries
+        ? clusterDate(String(r[xField]||''), cluster)
+        : String(r[xField]||'Unknown').trim()||'Unknown';
+      if (w.y_aggregation === 'sum' && w.y_field !== 'count') {
+        counts[key] = (counts[key]||0) + (parseFloat(r[w.y_field])||0);
+      } else {
+        counts[key] = (counts[key]||0) + 1;
+      }
+    });
+  }
+
+  // Sort time-series by date key
+  let entries = Object.entries(counts);
+  if (isTimeSeries) entries.sort((a,b) => a[0].localeCompare(b[0]));
+  const labels = entries.map(e=>e[0]);
+  const data   = entries.map(e=>e[1]);
+
+  const COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#888780','#E06C9F','#2C7BB6'];
+
+  if (w.widget_type === 'kpi') {
+    const val = w.y_aggregation === 'sum' && w.y_field !== 'count'
+      ? rows.reduce((s,r) => s+(parseFloat(r[w.y_field])||0),0)
+      : rows.length;
+    body.innerHTML = `${filterSummary}${dateSummary}
+      <div style="text-align:center;padding:2rem 0;">
+        <div style="font-size:11px;color:#888780;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em;">${w.title}</div>
+        <div style="font-size:48px;font-weight:500;color:#185FA5;">${Math.round(val).toLocaleString('en-US')}</div>
+        <div style="font-size:12px;color:#b4b2a9;margin-top:4px;">from ${rows.length} records</div>
+      </div>`;
+    return;
+  }
+
+  if (w.widget_type === 'table') {
+    const tableRows = entries.sort((a,b)=>b[1]-a[1]);
+    body.innerHTML = `${filterSummary}${dateSummary}
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;background:#f9f8f5;border-bottom:1px solid #e8e7e1;">${xField}</th>
+          <th style="text-align:right;padding:6px 8px;background:#f9f8f5;border-bottom:1px solid #e8e7e1;">Count</th>
+        </tr></thead>
+        <tbody>${tableRows.map(([k,v])=>`<tr><td style="padding:6px 8px;border-bottom:1px solid #f1efe8;">${k}</td><td style="text-align:right;padding:6px 8px;border-bottom:1px solid #f1efe8;">${Math.round(v).toLocaleString('en-US')}</td></tr>`).join('')}</tbody>
+      </table>`;
+    return;
+  }
+
+  // Chart types
+  body.innerHTML = `${filterSummary}${dateSummary}<div style="position:relative;height:280px;"><canvas id="preview-chart"></canvas></div>`;
+
+  if (previewChartInstance) { previewChartInstance.destroy(); previewChartInstance = null; }
+
+  setTimeout(() => {
+    const canvas = document.getElementById('preview-chart');
+    if (!canvas) return;
+    const type = (w.widget_type === 'timeseries' || w.widget_type === 'line') ? 'line' : w.widget_type === 'doughnut' ? 'doughnut' : 'bar';
+    const colors = COLORS.slice(0, labels.length);
+    previewChartInstance = new Chart(canvas, {
+      type,
+      data: { labels, datasets: [{ label: w.title, data,
+        backgroundColor: type==='line' ? colors[0]+'20' : colors,
+        borderColor: type==='line' ? colors[0] : colors,
+        borderWidth: type==='line' ? 2 : 1,
+        fill: type==='line', tension: 0.3,
+        pointBackgroundColor: type==='line' ? colors[0] : undefined,
+        pointRadius: type==='line' ? 4 : undefined,
+      }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 20 } },
+        plugins: {
+          legend: { display: type==='doughnut', position:'right', labels:{font:{size:10},boxWidth:12} },
+          datalabels: {
+            display: true, anchor:'end', align: type==='doughnut'?'center':'end',
+            font:{size:9,weight:'600'}, color: type==='doughnut'?'#fff':'#444',
+            formatter: (v,ctx) => {
+              if (type==='doughnut') { const t=ctx.dataset.data.reduce((a,b)=>a+b,0); return t>0?Math.round(v/t*100)+'%':''; }
+              return v===0?'':v;
+            }
+          }
+        },
+        scales: type==='doughnut'?{}:{
+          x:{ticks:{font:{size:9},maxRotation:45,autoSkip:labels.length>12}},
+          y:{beginAtZero:true,ticks:{font:{size:10}}}
+        }
+      }
+    });
+  }, 50);
+}
+
+function closePreview() {
+  document.getElementById('preview-modal').classList.remove('open');
+  if (previewChartInstance) { previewChartInstance.destroy(); previewChartInstance = null; }
+}
+
+// Close modal on backdrop click
+document.getElementById('preview-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePreview();
+});
+
+let filterCount = 0;
+function addFilterRow() {
+  filterCount++;
+  const id = filterCount;
+  const opts = sheetFields.map(f => `<option value="${f}">${f}</option>`).join('');
+  const div = document.createElement('div');
+  div.id = `filter-row-${id}`;
+  div.style.cssText = 'display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;';
+  div.innerHTML = `
+    <div class="field" style="flex:2;">
+      <label>Field</label>
+      <select class="w-filter-field" onchange="updateFilterValues(${id})" style="width:100%;">
+        <option value="">— select —</option>${opts}
+      </select>
+    </div>
+    <div class="field" style="flex:1;">
+      <label>Operator</label>
+      <select class="w-filter-op" style="width:100%;">
+        <option value="equals">equals</option>
+        <option value="not_equals">not equals</option>
+        <option value="contains">contains</option>
+      </select>
+    </div>
+    <div class="field" style="flex:2;">
+      <label>Value</label>
+      <select class="w-filter-val" id="filter-val-${id}" style="width:100%;"><option value="">— select field first —</option></select>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="document.getElementById('filter-row-${id}').remove()" style="margin-bottom:1px;">✕</button>`;
+  document.getElementById('w-filters').appendChild(div);
+}
+
+function updateFilterValues(id) {
+  const field = document.querySelector(`#filter-row-${id} .w-filter-field`).value;
+  const vals  = sheetFieldValues[field] || [];
+  const sel   = document.getElementById(`filter-val-${id}`);
+  sel.innerHTML = '<option value="">— any —</option>' + vals.map(v => `<option value="${v}">${v}</option>`).join('');
 }
 
 async function saveWidget() {
-  const title = document.getElementById('w-title').value.trim();
-  const type  = document.getElementById('w-type').value;
-  const field = document.getElementById('w-field').value;
-  const agg   = document.getElementById('w-agg').value;
-  const status = document.getElementById('w-status');
+  const title    = document.getElementById('w-title').value.trim();
+  const type     = document.getElementById('w-type').value;
+  const xField   = document.getElementById('w-x').value;
+  const yField   = document.getElementById('w-y').value;
+  const agg      = document.getElementById('w-agg').value;
+  const dateFrom = document.getElementById('w-date-from').value;
+  const dateTo   = document.getElementById('w-date-to').value;
+  const cluster  = document.getElementById('w-cluster').value;
+  const status   = document.getElementById('w-status');
 
   if (!title) { showToast('Please enter a widget title.', true); return; }
-  if (!field) { showToast('Please load and select a field first.', true); return; }
+  if (type !== 'kpi' && !xField) { showToast('Please select an X axis field.', true); return; }
 
-  // Get current max sort_order
+  // Collect filters
+  const filters = [];
+  document.querySelectorAll('[id^="filter-row-"]').forEach(row => {
+    const field = row.querySelector('.w-filter-field').value;
+    const op    = row.querySelector('.w-filter-op').value;
+    const val   = row.querySelector('.w-filter-val').value;
+    if (field && val) filters.push({ field, operator: op, value: val });
+  });
+
   const { data: existing } = await sb.from('dashboard_widgets').select('sort_order').order('sort_order', { ascending: false }).limit(1);
   const nextOrder = existing?.length ? (existing[0].sort_order + 1) : 0;
 
-  const { error } = await sb.from('dashboard_widgets').insert({
-    title, widget_type: type, field, aggregation: agg, sort_order: nextOrder
+  const { error } = await sb.rpc('insert_dashboard_widget', {
+    p_title:         title,
+    p_widget_type:   type,
+    p_x_field:       xField || '',
+    p_y_field:       yField || 'count',
+    p_y_aggregation: agg,
+    p_filters:       JSON.stringify(filters),
+    p_date_from:     dateFrom || '',
+    p_date_to:       dateTo || '',
+    p_date_cluster:  cluster || 'week',
+    p_sort_order:    nextOrder
   });
 
   if (error) { showToast('Error: ' + error.message, true); return; }
 
+  // Reset form
   document.getElementById('w-title').value = '';
+  document.getElementById('w-date-from').value = '';
+  document.getElementById('w-date-to').value = '';
+  document.getElementById('w-filters').innerHTML = '';
+  filterCount = 0;
   showToast('Widget added ✓');
   loadWidgets();
 }
 
 async function loadWidgets() {
   const el = document.getElementById('widget-list');
+  if (!el) return;
   el.innerHTML = '<div class="loading-overlay">Loading…</div>';
 
-  const { data, error } = await sb.from('dashboard_widgets')
-    .select('*').order('sort_order');
-
+  const { data, error } = await sb.from('dashboard_widgets').select('*').order('sort_order');
   if (error) { el.innerHTML = `<div style="color:#993C1D;font-size:12px;">${error.message}</div>`; return; }
 
   document.getElementById('widget-count').textContent = `(${data?.length || 0})`;
@@ -921,37 +1248,38 @@ async function loadWidgets() {
     return;
   }
 
-  el.innerHTML = '<div class="records-list">' + data.map(w => `
-    <div class="record-row" id="widget-row-${w.id}">
-      <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap;">
-        <span style="font-size:20px;">${WIDGET_TYPE_ICONS[w.widget_type] || '📊'}</span>
-        <div>
-          <div class="record-info">${w.title}</div>
-          <div class="record-meta">${WIDGET_TYPE_LABELS[w.widget_type]} · Field: <strong>${w.field}</strong> · ${w.aggregation}</div>
-        </div>
+  el.innerHTML = '<div class="records-list">' + data.map(w => {
+    const filters = (typeof w.filters === 'string' ? JSON.parse(w.filters) : w.filters) || [];
+    const filterStr = filters.length ? filters.map(f => `${f.field} ${f.operator} "${f.value}"`).join(', ') : 'No filters';
+    const dateStr = (w.date_from || w.date_to) ? ` · ${w.date_from||'any'} → ${w.date_to||'any'}` : '';
+    return `<div class="record-row" id="widget-row-${w.id}">
+      <div style="flex:1;">
+        <div class="record-info">${WIDGET_TYPE_ICONS[w.widget_type]} ${w.title}</div>
+        <div class="record-meta">${WIDGET_TYPE_LABELS[w.widget_type]} · X: ${w.x_field||'—'} · Y: ${w.y_field} (${w.y_aggregation})</div>
+        <div class="record-meta" style="color:#b4b2a9;">Filters: ${filterStr}${dateStr}</div>
       </div>
-      <div class="record-actions" style="display:flex;gap:6px;align-items:center;">
-        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}', ${w.sort_order}, -1)" title="Move up">↑</button>
-        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}', ${w.sort_order}, 1)" title="Move down">↓</button>
-        <button class="btn btn-secondary btn-sm" onclick="toggleWidget('${w.id}', ${w.active})">${w.active ? 'Hide' : 'Show'}</button>
+      <div class="record-actions">
+        <button class="btn btn-secondary btn-sm" onclick="previewWidget('${w.id}')">Preview</button>
+        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}',${w.sort_order},-1)">↑</button>
+        <button class="btn btn-secondary btn-sm" onclick="moveWidget('${w.id}',${w.sort_order},1)">↓</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleWidget('${w.id}',${w.active})">${w.active?'Hide':'Show'}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteWidget('${w.id}')">Delete</button>
       </div>
-    </div>`).join('') + '</div>';
+    </div>`;
+  }).join('') + '</div>';
 }
 
 async function deleteWidget(id) {
   if (!confirm('Delete this widget?')) return;
   const { error } = await sb.from('dashboard_widgets').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message, true); return; }
-  showToast('Widget deleted');
-  loadWidgets();
+  showToast('Widget deleted'); loadWidgets();
 }
 
 async function toggleWidget(id, currentActive) {
   const { error } = await sb.from('dashboard_widgets').update({ active: !currentActive }).eq('id', id);
   if (error) { showToast('Error: ' + error.message, true); return; }
-  showToast(currentActive ? 'Widget hidden' : 'Widget shown');
-  loadWidgets();
+  showToast(currentActive ? 'Widget hidden' : 'Widget shown'); loadWidgets();
 }
 
 async function moveWidget(id, currentOrder, direction) {
