@@ -280,26 +280,67 @@
 
       <!-- ENTRY TAB -->
       <div id="tab-entry">
-        <div class="section-header">Select month</div>
-        <div class="month-bar">
-          <div class="field">
-            <label for="sel-month">Month</label>
-            <select id="sel-month">
-              <option value="1">January</option><option value="2">February</option>
-              <option value="3">March</option><option value="4">April</option>
-              <option value="5">May</option><option value="6" selected>June</option>
-              <option value="7">July</option><option value="8">August</option>
-              <option value="9">September</option><option value="10">October</option>
-              <option value="11">November</option><option value="12">December</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="sel-year">Year</label>
-            <input type="number" id="sel-year" value="2026" min="2020" max="2040" style="width:90px;" />
-          </div>
-          <button class="btn btn-secondary" onclick="loadMonth()">Load</button>
+
+        <!-- Mode toggle -->
+        <div style="display:flex;gap:8px;margin-bottom:1.5rem;">
+          <button class="btn btn-primary" id="mode-csv-btn" onclick="setEntryMode('csv')">📂 CSV Upload</button>
+          <button class="btn btn-secondary" id="mode-manual-btn" onclick="setEntryMode('manual')">✏️ Manual Entry</button>
         </div>
-        <div id="entry-form"></div>
+
+        <!-- CSV UPLOAD MODE -->
+        <div id="entry-csv">
+          <div class="section-header">Upload monthly data via CSV</div>
+          <div class="settings-card">
+            <p class="settings-hint" style="margin-bottom:1rem;">Download the template, fill it in, then upload it here. One file can contain multiple months and properties — all rows will be upserted at once.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;">
+              <button class="btn btn-secondary" onclick="downloadPropertyTemplate()">⬇ Download property stats template</button>
+              <button class="btn btn-secondary" onclick="downloadTonikTemplate()">⬇ Download portfolio stats template</button>
+            </div>
+
+            <div class="section-subheader" style="margin-bottom:0.5rem;">Upload CSV</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field">
+                <label for="csv-type">Data type</label>
+                <select id="csv-type">
+                  <option value="property">Property stats</option>
+                  <option value="tonik">Portfolio (Tonik) stats</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="csv-file">CSV file</label>
+                <input type="file" id="csv-file" accept=".csv" style="font-size:12px;padding:5px 8px;" />
+              </div>
+              <button class="btn btn-primary" onclick="uploadCSV()">Upload & save</button>
+            </div>
+
+            <div id="csv-preview" style="margin-top:1.25rem;"></div>
+          </div>
+        </div>
+
+        <!-- MANUAL ENTRY MODE -->
+        <div id="entry-manual" style="display:none;">
+          <div class="section-header">Select month</div>
+          <div class="month-bar">
+            <div class="field">
+              <label for="sel-month">Month</label>
+              <select id="sel-month">
+                <option value="1">January</option><option value="2">February</option>
+                <option value="3">March</option><option value="4">April</option>
+                <option value="5">May</option><option value="6" selected>June</option>
+                <option value="7">July</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">October</option>
+                <option value="11">November</option><option value="12">December</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sel-year">Year</label>
+              <input type="number" id="sel-year" value="2026" min="2020" max="2040" style="width:90px;" />
+            </div>
+            <button class="btn btn-secondary" onclick="loadMonth()">Load</button>
+          </div>
+          <div id="entry-form"></div>
+        </div>
+
       </div>
 
       <!-- RECORDS TAB -->
@@ -445,6 +486,21 @@
           </div>
           <div class="section-subheader" style="margin-top:1.25rem;">Current properties</div>
           <div id="prop-list" class="settings-list"></div>
+        </div>
+
+        <div class="section-header" style="margin-top:1.75rem;">USD exchange rate</div>
+        <div class="settings-card">
+          <p class="settings-hint">Set the LKR buying rate per 1 USD (CBSL buying rate — used to show USD equivalent of ARR on the dashboard). Current rate as of 23 Jun 2026: 333.</p>
+          <div class="settings-row" style="margin-top:1rem;">
+            <div class="field">
+              <label for="usd-rate">LKR per 1 USD (buying rate)</label>
+              <input type="number" id="usd-rate" value="333" min="1" step="0.01" style="max-width:140px;" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-primary" onclick="saveUsdRate()">Save</button>
+            </div>
+          </div>
         </div>
 
         <div class="section-header" style="margin-top:1.75rem;">YTD period</div>
@@ -626,6 +682,149 @@ function showTab(tab) {
   if (tab === 'entry' && document.getElementById('entry-form')) loadMonth();
 }
 
+// ── CSV Upload ────────────────────────────────────────────────────────────────
+
+function setEntryMode(mode) {
+  document.getElementById('entry-csv').style.display    = mode === 'csv'    ? '' : 'none';
+  document.getElementById('entry-manual').style.display = mode === 'manual' ? '' : 'none';
+  document.getElementById('mode-csv-btn').className    = mode === 'csv'    ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('mode-manual-btn').className = mode === 'manual' ? 'btn btn-primary' : 'btn btn-secondary';
+}
+
+function downloadPropertyTemplate() {
+  const headers = 'property_name,property_type,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
+  const example = [
+    'KAHA,Management,2026,7,1250000,1080000,125000,120000,10,9,33,30',
+    'Villa Sayura,Management,2026,7,680000,630000,34000,105000,8,6,38,20',
+    'Garfield Bungalow,Franchise,2026,7,950000,1000000,19000,19077,12,15,48,50',
+    'Garfield Cottage,Franchise,2026,7,880000,1000000,18500,19077,11,15,45,50',
+  ].join('\n');
+  downloadCSVFile('tonik_property_stats_template.csv', headers + '\n' + example);
+}
+
+function downloadTonikTemplate() {
+  const headers = 'segment,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget,share_actual,share_budget,villas_actual,villas_budget,rooms_actual,rooms_budget';
+  const example = [
+    'Franchise,2026,7,1830000,7556250,95000,95384,19,75,51,50,329400,1360125,2,5,0,0',
+    'Management,2026,7,1930000,5810805,40000,41230,48,450,32,32,0,0,6,15,180,450',
+  ].join('\n');
+  downloadCSVFile('tonik_portfolio_stats_template.csv', headers + '\n' + example);
+}
+
+function downloadCSVFile(filename, content) {
+  const blob = new Blob([content], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseUploadedCSV(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  return lines.slice(1).map(line => {
+    const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = cols[i] ?? '');
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+async function uploadCSV() {
+  const file    = document.getElementById('csv-file').files[0];
+  const type    = document.getElementById('csv-type').value;
+  const preview = document.getElementById('csv-preview');
+
+  if (!file) { showToast('Please select a CSV file.', true); return; }
+
+  const text = await file.text();
+  const rows = parseUploadedCSV(text);
+
+  if (!rows.length) { showToast('No data found in CSV.', true); return; }
+
+  // Show preview
+  preview.innerHTML = `<div style="font-size:12px;color:#73726c;margin-bottom:0.75rem;">${rows.length} row(s) found — previewing first 5:</div>
+    <div class="table-scroll"><table class="data-table" style="min-width:unset;">
+      <thead><tr>${Object.keys(rows[0]).map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows.slice(0,5).map(r=>`<tr>${Object.values(r).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:1rem;display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-primary" onclick="confirmUpload()">✓ Confirm & save ${rows.length} row(s)</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('csv-preview').innerHTML=''">Cancel</button>
+    </div>`;
+
+  // Store for confirm step
+  window._pendingCSVRows = rows;
+  window._pendingCSVType = type;
+}
+
+async function confirmUpload() {
+  const rows = window._pendingCSVRows;
+  const type = window._pendingCSVType;
+  const preview = document.getElementById('csv-preview');
+  if (!rows?.length) return;
+
+  preview.innerHTML = '<div style="font-size:12px;color:#73726c;">Saving…</div>';
+
+  try {
+    let upserts, conflict;
+
+    if (type === 'property') {
+      upserts = rows.map(r => ({
+        property_name: r.property_name,
+        property_type: r.property_type,
+        stat_year:     parseInt(r.stat_year),
+        stat_month:    parseInt(r.stat_month),
+        rev_actual:    parseFloat(r.rev_actual)  || 0,
+        rev_budget:    parseFloat(r.rev_budget)  || 0,
+        arr_actual:    parseFloat(r.arr_actual)  || 0,
+        arr_budget:    parseFloat(r.arr_budget)  || 0,
+        rn_actual:     parseInt(r.rn_actual)     || 0,
+        rn_budget:     parseInt(r.rn_budget)     || 0,
+        occu_actual:   parseFloat(r.occu_actual) || 0,
+        occu_budget:   parseFloat(r.occu_budget) || 0,
+      }));
+      conflict = 'property_name,stat_year,stat_month';
+    } else {
+      upserts = rows.map(r => ({
+        segment:       r.segment,
+        stat_year:     parseInt(r.stat_year),
+        stat_month:    parseInt(r.stat_month),
+        rev_actual:    parseFloat(r.rev_actual)    || 0,
+        rev_budget:    parseFloat(r.rev_budget)    || 0,
+        arr_actual:    parseFloat(r.arr_actual)    || 0,
+        arr_budget:    parseFloat(r.arr_budget)    || 0,
+        rn_actual:     parseInt(r.rn_actual)       || 0,
+        rn_budget:     parseInt(r.rn_budget)       || 0,
+        occu_actual:   parseFloat(r.occu_actual)   || 0,
+        occu_budget:   parseFloat(r.occu_budget)   || 0,
+        share_actual:  parseFloat(r.share_actual)  || 0,
+        share_budget:  parseFloat(r.share_budget)  || 0,
+        villas_actual: parseInt(r.villas_actual)   || 0,
+        villas_budget: parseInt(r.villas_budget)   || 0,
+        rooms_actual:  parseInt(r.rooms_actual)    || 0,
+        rooms_budget:  parseInt(r.rooms_budget)    || 0,
+      }));
+      conflict = 'segment,stat_year,stat_month';
+    }
+
+    const table = type === 'property' ? 'property_stats' : 'tonik_stats';
+    const { error } = await sb.from(table).upsert(upserts, { onConflict: conflict });
+    if (error) throw new Error(error.message);
+
+    preview.innerHTML = `<div style="background:#e6f6f1;border:1px solid #9FE1CB;border-radius:8px;padding:0.875rem 1rem;font-size:12px;color:#0F6E56;">
+      ✓ ${rows.length} row(s) saved successfully to ${type === 'property' ? 'property stats' : 'portfolio stats'}.
+    </div>`;
+    document.getElementById('csv-file').value = '';
+    window._pendingCSVRows = null;
+    showToast(`${rows.length} rows saved ✓`);
+
+  } catch(e) {
+    preview.innerHTML = `<div style="color:#993C1D;font-size:12px;">Error: ${e.message}</div>`;
+    showToast('Upload failed: ' + e.message, true);
+  }
+}
+
 // ── Load month ────────────────────────────────────────────────────────────────
 async function loadMonth() {
   const month = +document.getElementById('sel-month').value;
@@ -767,12 +966,27 @@ function saveProperties(props) {
 }
 function getFySetting() { return parseInt(localStorage.getItem('tonik_fy_start') || '4'); }
 
-function loadSettings() {
+async function loadSettings() {
   const props = getProperties();
   document.getElementById('prop-list').innerHTML = props.length
     ? props.map((p,i) => `<div class="settings-list-item"><span>${p.name}</span><span class="prop-badge">${p.type}</span><button class="btn btn-danger btn-sm" onclick="removeProperty(${i})">Remove</button></div>`).join('')
     : '<div style="font-size:12px;color:#b4b2a9;">No properties yet.</div>';
   document.getElementById('fy-start').value = getFySetting();
+
+  // Load USD rate from Supabase, fall back to localStorage
+  const { data } = await sb.from('app_settings').select('value').eq('key', 'usd_rate').single();
+  const rate = data?.value || localStorage.getItem('tonik_usd_rate') || '333';
+  document.getElementById('usd-rate').value = rate;
+  localStorage.setItem('tonik_usd_rate', rate); // update local cache
+}
+
+async function saveUsdRate() {
+  const val = parseFloat(document.getElementById('usd-rate').value);
+  if (!val || val <= 0) { showToast('Please enter a valid rate.', true); return; }
+  const { error } = await sb.from('app_settings').upsert({ key: 'usd_rate', value: val.toString() }, { onConflict: 'key' });
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  localStorage.setItem('tonik_usd_rate', val.toString()); // keep local copy as cache
+  showToast(`Exchange rate saved: LKR ${val} per USD ✓`);
 }
 
 function addProperty() {

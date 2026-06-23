@@ -57,7 +57,7 @@
     .data-table .total-row td { font-weight: 600; border-top: 1.5px solid #d3d1c7; background: #f9f8f5; }
     .scroll-hint { font-size: 10px; color: #b4b2a9; margin-bottom: 4px; display: none; }
     .tonik-section { margin-top: 2rem; padding-top: 1.75rem; border-top: 2px solid #d3d1c7; }
-    .tonik-badge { display: inline-block; background: #185FA5; color: #B5D4F4; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 12px; border-radius: 6px; margin-bottom: 0.875rem; }
+    .tonik-badge { display: inline-block; background: #185FA5; color: #B5D4F4; font-size: 20px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 8px 24px; border-radius: 8px; margin-bottom: 1rem; }
     .share-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.25rem; }
     .loading { text-align: center; padding: 3rem 1rem; color: #888780; font-size: 14px; }
     .error-banner { background: #fff0ed; border: 1px solid #f5c4b3; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 12px; color: #993C1D; }
@@ -121,6 +121,7 @@ const SUPABASE_URL  = 'https://rmnufhsfuaycpkdzwfgj.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbnVmaHNmdWF5Y3BrZHp3ZmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Njc3NjksImV4cCI6MjA5NzU0Mzc2OX0.rnBgL4fAowZrimTP3LZMSZwcOBcTW-kraPnupqyidU4';
 // FY start month (April = 4)
 const FY_START_MONTH = 4;
+let USD_RATE = parseFloat(localStorage.getItem('tonik_usd_rate') || '333'); // updated after load
 // ──────────────────────────────────────────────────────────────────────────────
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -158,15 +159,20 @@ let charts = {};
 let activePeriod = null; // { type: 'month'|'ytd', year, month, fyYear }
 
 async function loadData() {
-  const [{ data: ps, error: e1 }, { data: ts, error: e2 }, { data: pace, error: e3 }] = await Promise.all([
+  const [{ data: ps, error: e1 }, { data: ts, error: e2 }, { data: pace, error: e3 }, { data: rateRow }] = await Promise.all([
     sb.from('property_stats').select('*').order('stat_year').order('stat_month'),
     sb.from('tonik_stats').select('*').order('stat_year').order('stat_month'),
     sb.from('pace_stats').select('*').order('week_start'),
+    sb.from('app_settings').select('value').eq('key','usd_rate').single(),
   ]);
   if (e1 || e2 || e3) throw new Error(e1?.message || e2?.message || e3?.message);
   allPropStats  = ps   || [];
   allTonikStats = ts   || [];
   allPaceStats  = pace || [];
+  if (rateRow?.value) {
+    USD_RATE = parseFloat(rateRow.value);
+    localStorage.setItem('tonik_usd_rate', rateRow.value);
+  }
 }
 
 function buildTabs() {
@@ -391,9 +397,9 @@ function renderDashboard(period) {
 
   // ── Summary metric cards
   const propCards = [
-    { label:'Total revenue (LKR)', a:'LKR '+fmt(totA), b:'Bgt: LKR '+fmt(totB), va:totA, vb:totB, occu:false },
+    { label:'Total revenue', a:'LKR '+fmt(totA), b:'Bgt: LKR '+fmt(totB), va:totA, vb:totB, occu:false },
     { label:'Room nights', a:fmt(rnA), b:'Bgt: '+fmt(rnB), va:rnA, vb:rnB, occu:false },
-    { label:'Blended ARR (LKR)', a:fmt(arrA), b:'Bgt: '+fmt(arrB), va:arrA, vb:arrB, occu:false },
+    { label:'Blended ARR', a:'LKR '+fmt(arrA)+' (USD '+fmt(Math.round(arrA/USD_RATE))+')', b:'Bgt: LKR '+fmt(arrB)+' (USD '+fmt(Math.round(arrB/USD_RATE))+')', va:arrA, vb:arrB, occu:false },
     { label:'Avg occupancy', a:fmtPct(avgOA), b:'Bgt: '+fmtPct(avgOB), va:avgOA, vb:avgOB, occu:true },
   ];
 
@@ -407,9 +413,9 @@ function renderDashboard(period) {
   const tOB   = ((franchise.occuB||0)+(management.occuB||0))/2;
 
   const tonikCards = [
-    { label:'Portfolio revenue actual', v:'LKR '+fmt(tRevA), sub:'Budget: LKR '+fmt(tRevB), va:tRevA, vb:tRevB, occu:false },
-    { label:'Tonik Share actual', v:'LKR '+fmt(tShareA), sub:'Budget: LKR '+fmt(tShareB), va:tShareA, vb:tShareB, occu:false },
-    { label:'Portfolio room nights', v:fmt(tRnA), sub:'Budget: '+fmt(tRnB), va:tRnA, vb:tRnB, occu:false },
+    { label:'Portfolio revenue (Franchise + Management)', v:'LKR '+fmt(tRevA), sub:'Budget: LKR '+fmt(tRevB), va:tRevA, vb:tRevB, occu:false },
+    { label:'Tonik Share (Franchise + Management)', v:'LKR '+fmt(tShareA), sub:'Budget: LKR '+fmt(tShareB), va:tShareA, vb:tShareB, occu:false },
+    { label:'Portfolio room nights (Franchise + Management)', v:fmt(tRnA), sub:'Budget: '+fmt(tRnB), va:tRnA, vb:tRnB, occu:false },
     { label:'Avg portfolio occupancy', v:fmtPct(tOA), sub:'Budget: '+fmtPct(tOB), va:tOA, vb:tOB, occu:true },
     { label:'Active villas — Franchise', v:(franchise.villasA||0)+' villas', sub:'Budget: '+(franchise.villasB||0), va:franchise.villasA||0, vb:franchise.villasB||0, occu:false },
     { label:'Active room nights sellable — Management', v:fmt(management.roomsA||0), sub:'Budget: '+fmt(management.roomsB||0), va:management.roomsA||0, vb:management.roomsB||0, occu:false },
@@ -423,12 +429,26 @@ function renderDashboard(period) {
   }).join('');
 
   // Property detail table
+  const propHeaders = ['Property','Type','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ARR Actual','ARR Budget','Occu Actual','Occu Budget'];
+
+  const totalRevA = props.reduce((s,p)=>s+p.revA,0);
+  const totalRevB = props.reduce((s,p)=>s+p.revB,0);
+  const totalRnA  = props.reduce((s,p)=>s+p.rnA,0);
+  const totalRnB  = props.reduce((s,p)=>s+p.rnB,0);
+  const totalArrA = totalRnA>0 ? totalRevA/totalRnA : 0;
+  const totalArrB = totalRnB>0 ? totalRevB/totalRnB : 0;
+  const totalOccuA = props.length ? props.reduce((s,p)=>s+p.occuA,0)/props.length : 0;
+  const totalOccuB = props.length ? props.reduce((s,p)=>s+p.occuB,0)/props.length : 0;
+  const totalRevVar = totalRevA - totalRevB;
+  const totalVc = totalRevVar>=0 ? 'var-pos' : 'var-neg';
+
+  const usd = v => ` <span style="color:#888780;font-size:10px;">(USD ${fmt(Math.round(v/USD_RATE))})</span>`;
+
   const propTableRows = props.map(p => {
     const rv = p.revA-p.revB; const vc = varCls(p.revA,p.revB);
-    return `<tr><td>${p.name}</td><td style="color:#888780">${p.type}</td><td>LKR ${fmt(p.revA)}</td><td>LKR ${fmt(p.revB)}</td><td class="var-cell ${vc}">${rv>=0?'+':''}${fmt(rv)}</td><td>${fmt(p.rnA)}</td><td>${fmt(p.rnB)}</td><td>${fmt(p.arrA)}</td><td>${fmt(p.arrB)}</td><td>${fmtPct(p.occuA)}</td><td>${fmtPct(p.occuB)}</td></tr>`;
-  }).join('');
-
-  const propHeaders = ['Property','Type','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ARR Actual','ARR Budget','Occu Actual','Occu Budget'];
+    return `<tr><td>${p.name}</td><td style="color:#888780">${p.type}</td><td>LKR ${fmt(p.revA)}</td><td>LKR ${fmt(p.revB)}</td><td class="var-cell ${vc}">${rv>=0?'+':''}${fmt(rv)}</td><td>${fmt(p.rnA)}</td><td>${fmt(p.rnB)}</td><td>LKR ${fmt(p.arrA)}${usd(p.arrA)}</td><td>LKR ${fmt(p.arrB)}${usd(p.arrB)}</td><td>${fmtPct(p.occuA)}</td><td>${fmtPct(p.occuB)}</td></tr>`;
+  }).join('') +
+  `<tr class="total-row"><td>Total</td><td></td><td>LKR ${fmt(totalRevA)}</td><td>LKR ${fmt(totalRevB)}</td><td class="var-cell ${totalVc}">${totalRevVar>=0?'+':''}${fmt(totalRevVar)}</td><td>${fmt(totalRnA)}</td><td>${fmt(totalRnB)}</td><td>LKR ${fmt(totalArrA)}${usd(totalArrA)}</td><td>LKR ${fmt(totalArrB)}${usd(totalArrB)}</td><td>${fmtPct(totalOccuA)}</td><td>${fmtPct(totalOccuB)}</td></tr>`;
 
   // Tonik detail table
   const tonikRows = [
@@ -439,7 +459,7 @@ function renderDashboard(period) {
   const tonikTableRows = tonikRows.map(r => {
     const rv = (r.revA||0)-(r.revB||0); const vc = varCls(r.revA,r.revB);
     const cls = r._total ? ' class="total-row"' : '';
-    return `<tr${cls}><td>${r.seg}</td><td>LKR ${fmt(r.revA)}</td><td>LKR ${fmt(r.revB)}</td><td class="var-cell ${vc}">${rv>=0?'+':''}${fmt(rv)}</td><td>${fmt(r.rnA)}</td><td>${fmt(r.rnB)}</td><td>${fmt(r.arrA)}</td><td>${fmt(r.arrB)}</td><td>${fmtPct(r.occuA)}</td><td>${fmtPct(r.occuB)}</td><td>LKR ${fmt(r.shareA)}</td><td>LKR ${fmt(r.shareB)}</td></tr>`;
+    return `<tr${cls}><td>${r.seg}</td><td>LKR ${fmt(r.revA)}</td><td>LKR ${fmt(r.revB)}</td><td class="var-cell ${vc}">${rv>=0?'+':''}${fmt(rv)}</td><td>${fmt(r.rnA)}</td><td>${fmt(r.rnB)}</td><td>LKR ${fmt(r.arrA)}${usd(r.arrA)}</td><td>LKR ${fmt(r.arrB)}${usd(r.arrB)}</td><td>${fmtPct(r.occuA)}</td><td>${fmtPct(r.occuB)}</td><td>LKR ${fmt(r.shareA)}</td><td>LKR ${fmt(r.shareB)}</td></tr>`;
   }).join('');
   const tonikHeaders = ['Segment','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ARR Actual','ARR Budget','Occu Actual','Occu Budget','Share Actual','Share Budget'];
 
