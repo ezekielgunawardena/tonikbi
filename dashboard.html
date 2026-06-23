@@ -507,7 +507,165 @@ function renderDashboard(period) {
       { label:'Budget', data:[franchise.shareB||0, management.shareB||0], backgroundColor:'#F5C4B3', borderWidth:1, borderColor:'#D85A30' }
     ]}, options:chartOpts(v=>v>=1e6?'LKR '+(v/1e6).toFixed(0)+'M':'LKR '+(v/1000).toFixed(0)+'K')
   });
+
+  // ── Monthly revenue by property (Jan–Dec 2026) ──────────────────────────────
+  buildMonthlyPropertyChart();
 }
+
+let monthlyMetric = 'revenue';
+let selectedProperties = new Set(['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage']);
+
+// Generate all months from Jan 2025 to Dec of current year + 1
+function generateAllMonths() {
+  const months = [];
+  const now = new Date();
+  const endYear = now.getFullYear() + 1;
+  for (let y = 2025; y <= endYear; y++) {
+    for (let m = 1; m <= 12; m++) {
+      months.push({ year: y, month: m, label: MONTH_NAMES[m-1] + ' ' + String(y).slice(2) });
+    }
+  }
+  return months;
+}
+
+const ALL_MONTHS = generateAllMonths();
+const WINDOW_SIZE = 12; // months visible at once
+let monthWindowStart = (() => {
+  const now = new Date();
+  const idx = ALL_MONTHS.findIndex(m => m.year === now.getFullYear() && m.month === 1);
+  return Math.max(0, idx);
+})();
+
+function scrollMonths(delta) {
+  monthWindowStart = Math.max(0, Math.min(ALL_MONTHS.length - WINDOW_SIZE, monthWindowStart + delta));
+  buildMonthlyPropertyChart();
+}
+
+function toggleProperty(name) {
+  if (selectedProperties.has(name)) {
+    if (selectedProperties.size === 1) return;
+    selectedProperties.delete(name);
+  } else {
+    selectedProperties.add(name);
+  }
+  buildMonthlyPropertyChart();
+}
+function setMonthlyMetric(metric) {
+  monthlyMetric = metric;
+  const active = 'font-size:10px;padding:4px 12px;border-radius:5px;border:1px solid #185FA5;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit;';
+  const inactive = 'font-size:10px;padding:4px 12px;border-radius:5px;border:1px solid #d3d1c7;background:#fff;color:#73726c;cursor:pointer;font-family:inherit;';
+  document.getElementById('toggle-rev-btn').style.cssText = metric==='revenue'  ? active : inactive;
+  document.getElementById('toggle-rn-btn').style.cssText  = metric==='rn'       ? active : inactive;
+  document.getElementById('toggle-occ-btn').style.cssText = metric==='occupancy'? active : inactive;
+  const titleEl = document.getElementById('monthly-chart-title');
+  if (titleEl) titleEl.textContent =
+    metric === 'revenue'   ? 'Monthly revenue by property' :
+    metric === 'rn'        ? 'Monthly room nights by property' :
+                             'Monthly occupancy by property';
+  buildMonthlyPropertyChart();
+}
+
+function buildMonthlyPropertyChart() {
+  const canvas = document.getElementById('monthlyRevChart');
+  if (!canvas) return;
+
+  const PROP_NAMES  = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
+  const PROP_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30'];
+  const isRev = monthlyMetric === 'revenue';
+  const isOcc = monthlyMetric === 'occupancy';
+
+  // Current window of months
+  const windowMonths = ALL_MONTHS.slice(monthWindowStart, monthWindowStart + WINDOW_SIZE);
+  const labels = windowMonths.map(m => m.label);
+
+  // Update range label
+  const rangeEl = document.getElementById('monthly-range-label');
+  if (rangeEl && windowMonths.length) {
+    rangeEl.textContent = windowMonths[0].label + ' – ' + windowMonths[windowMonths.length-1].label;
+  }
+
+  // Update chart title
+  const titleEl = document.getElementById('monthly-chart-title');
+  if (titleEl) titleEl.textContent =
+    isRev ? 'Monthly revenue by property' :
+    isOcc ? 'Monthly occupancy by property' :
+            'Monthly room nights by property';
+
+  // Build data for each property across the window
+  const propData = {};
+  PROP_NAMES.forEach(name => { propData[name] = windowMonths.map(() => 0); });
+
+  allPropStats.forEach(r => {
+    if (r.stat_month === 99) return;
+    const idx = windowMonths.findIndex(m => m.year === r.stat_year && m.month === r.stat_month);
+    if (idx === -1) return;
+    if (propData[r.property_name] !== undefined) {
+      propData[r.property_name][idx] = isRev ? (r.rev_actual || 0)
+        : isOcc ? (r.occu_actual || 0)
+        : (r.rn_actual || 0);
+    }
+  });
+
+  // Property toggle buttons
+  const togglesEl = document.getElementById('monthly-prop-toggles');
+  if (togglesEl) {
+    togglesEl.innerHTML = PROP_NAMES.map((p,i) => {
+      const isActive = selectedProperties.has(p);
+      const col = PROP_COLORS[i];
+      return `<button onclick="toggleProperty('${p}')" style="
+        font-size:10px;padding:4px 12px;border-radius:5px;
+        border:1px solid ${isActive ? col : '#d3d1c7'};
+        background:${isActive ? col : '#fff'};
+        color:${isActive ? '#fff' : '#73726c'};
+        cursor:pointer;font-family:inherit;transition:all 0.15s;">${p}</button>`;
+    }).join('');
+  }
+
+  const activeProps  = PROP_NAMES.filter(p => selectedProperties.has(p));
+  const activeColors = activeProps.map(p => PROP_COLORS[PROP_NAMES.indexOf(p)]);
+
+  if (charts.monthlyRev) charts.monthlyRev.destroy();
+
+  charts.monthlyRev = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: activeProps.map((name, i) => ({
+        label: name,
+        data: propData[name],
+        backgroundColor: activeColors[i],
+        borderRadius: 3,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
+          anchor: 'end', align: 'end', offset: 1,
+          font: { size: 9, weight: '600' }, color: '#444',
+          formatter: v => isRev
+            ? (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v)
+            : isOcc ? v.toFixed(1)+'%' : v
+        }
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 24 } },
+      plugins: { legend: { display: false }, datalabels: {} },
+      scales: {
+        x: { ticks: { font: { size: 10 } } },
+        y: {
+          beginAtZero: true,
+          max: isOcc ? 100 : undefined,
+          ticks: {
+            font: { size: 10 },
+            callback: v => isRev
+              ? (v >= 1e6 ? 'LKR '+(v/1e6).toFixed(1)+'M' : 'LKR '+(v/1000).toFixed(0)+'K')
+              : isOcc ? v+'%' : v
+          }
+        }
+      }
+    }
+  });
+}
+
 
 async function init() {
   const app = document.getElementById('app');
@@ -541,6 +699,26 @@ async function init() {
             <div class="chart-title">ARR by property (LKR)</div>
             <div class="legend"><span><span class="legend-dot" style="background:#534AB7;"></span>Actual</span><span><span class="legend-dot" style="background:#CECBF6;border:1px solid #534AB7;"></span>Budget</span></div>
             <div class="chart-wrap" style="height:200px;"><canvas id="arrChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="chart-stack single" style="margin-bottom:1.25rem;">
+          <div class="chart-box">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:0.5rem;">
+              <div class="chart-title" style="margin:0;" id="monthly-chart-title">Monthly revenue by property — Jan to Dec 2026</div>
+              <div style="display:flex;gap:6px;">
+                <button id="toggle-rev-btn" onclick="setMonthlyMetric('revenue')" style="font-size:10px;padding:4px 12px;border-radius:5px;border:1px solid #185FA5;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit;">Revenue</button>
+                <button id="toggle-rn-btn" onclick="setMonthlyMetric('rn')" style="font-size:10px;padding:4px 12px;border-radius:5px;border:1px solid #d3d1c7;background:#fff;color:#73726c;cursor:pointer;font-family:inherit;">Room Nights</button>
+                <button id="toggle-occ-btn" onclick="setMonthlyMetric('occupancy')" style="font-size:10px;padding:4px 12px;border-radius:5px;border:1px solid #d3d1c7;background:#fff;color:#73726c;cursor:pointer;font-family:inherit;">Occupancy</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;" id="monthly-prop-toggles"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+              <button onclick="scrollMonths(-1)" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1px solid #d3d1c7;background:#fff;cursor:pointer;font-family:inherit;">‹ Prev</button>
+              <span id="monthly-range-label" style="font-size:11px;color:#73726c;"></span>
+              <button onclick="scrollMonths(1)" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1px solid #d3d1c7;background:#fff;cursor:pointer;font-family:inherit;">Next ›</button>
+            </div>
+            <div class="chart-wrap" style="height:280px;"><canvas id="monthlyRevChart"></canvas></div>
           </div>
         </div>
 
