@@ -22,12 +22,15 @@
     .wordmark { font-size: 13px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: #185FA5; flex-shrink: 0; }
     .page-title { font-size: 18px; font-weight: 500; color: #1a1a18; line-height: 1.2; }
     .page-sub { font-size: 11px; color: #73726c; margin-top: 3px; }
-    .period-tabs { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+    .period-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
+    .tab-group { display: flex; flex-direction: column; gap: 4px; }
+    .tab-group-months { display: flex; gap: 4px; flex-wrap: wrap; }
     .tab-btn { font-size: 12px; padding: 7px 14px; border-radius: 6px; border: 1px solid #d3d1c7; cursor: pointer; background: #fff; color: #73726c; font-family: inherit; transition: all 0.15s; white-space: nowrap; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .tab-btn:hover { border-color: #185FA5; color: #185FA5; }
     .tab-btn.active { background: #185FA5; color: #fff; border-color: #185FA5; }
-    .tab-btn.ytd { background: #1a1a18; color: #f5f4f0; border-color: #1a1a18; }
+    .tab-btn.ytd { background: #1a1a18; color: #f5f4f0; border-color: #1a1a18; font-size: 11px; }
     .tab-btn.ytd.active { background: #185FA5; border-color: #185FA5; }
+    .tab-btn.month-sub { font-size: 11px; padding: 5px 10px; }
     .section-header { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #888780; margin-bottom: 0.875rem; padding-bottom: 0.5rem; border-bottom: 1px solid #d3d1c7; }
     .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.25rem; }
     .metric-card { background: #fff; border-radius: 10px; padding: 0.75rem 0.875rem; border: 1px solid #e8e7e1; }
@@ -201,29 +204,35 @@ function renderTabs(fyGroups) {
   container.innerHTML = '';
 
   Object.entries(fyGroups).sort().forEach(([fy, months]) => {
+    const group = document.createElement('div');
+    group.className = 'tab-group';
+
+    const fyEnd = +fy + 1;
+    const ytdBtn = document.createElement('button');
+    ytdBtn.className = 'tab-btn ytd';
+    ytdBtn.textContent = `FY${String(fy).slice(2)}–${String(fyEnd).slice(2)} YTD`;
+    ytdBtn.dataset.type = 'ytd';
+    ytdBtn.dataset.fy   = fy;
+    ytdBtn.addEventListener('click', () => selectPeriod({ type: 'ytd', fyYear: +fy }));
+    group.appendChild(ytdBtn);
+
+    const monthRow = document.createElement('div');
+    monthRow.className = 'tab-group-months';
     months.forEach(({ year, month }) => {
       const btn = document.createElement('button');
-      btn.className = 'tab-btn';
+      btn.className = 'tab-btn month-sub';
       btn.textContent = `${MONTH_NAMES[month-1]} ${year}`;
       btn.dataset.type  = 'month';
       btn.dataset.year  = year;
       btn.dataset.month = month;
       btn.dataset.fy    = fy;
       btn.addEventListener('click', () => selectPeriod({ type: 'month', year: +year, month: +month, fyYear: +fy }));
-      container.appendChild(btn);
+      monthRow.appendChild(btn);
     });
-
-    const ytdBtn = document.createElement('button');
-    ytdBtn.className = 'tab-btn ytd';
-    const fyEnd = +fy + 1;
-    ytdBtn.textContent = `FY${String(fy).slice(2)}–${String(fyEnd).slice(2)} YTD`;
-    ytdBtn.dataset.type = 'ytd';
-    ytdBtn.dataset.fy   = fy;
-    ytdBtn.addEventListener('click', () => selectPeriod({ type: 'ytd', fyYear: +fy }));
-    container.appendChild(ytdBtn);
+    group.appendChild(monthRow);
+    container.appendChild(group);
   });
 
-  // Pace tab
   const spacer = document.createElement('span');
   spacer.style.cssText = 'flex:1;';
   container.appendChild(spacer);
@@ -236,7 +245,6 @@ function renderTabs(fyGroups) {
   paceBtn.addEventListener('click', () => selectPeriod({ type: 'pace' }));
   container.appendChild(paceBtn);
 
-  // Inquiries tab
   const inqBtn = document.createElement('button');
   inqBtn.className = 'tab-btn';
   inqBtn.textContent = '🔍 Inquiries';
@@ -635,6 +643,8 @@ function buildMonthlyPropertyChart() {
         data: propData[name],
         backgroundColor: activeColors[i],
         borderRadius: 3,
+        barPercentage: 0.85,
+        categoryPercentage: 0.9,
         datalabels: {
           display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
           anchor: 'end', align: 'end', offset: 1,
@@ -718,7 +728,7 @@ async function init() {
               <span id="monthly-range-label" style="font-size:11px;color:#73726c;"></span>
               <button onclick="scrollMonths(1)" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1px solid #d3d1c7;background:#fff;cursor:pointer;font-family:inherit;">Next ›</button>
             </div>
-            <div class="chart-wrap" style="height:280px;"><canvas id="monthlyRevChart"></canvas></div>
+            <div class="chart-wrap" style="height:340px;"><canvas id="monthlyRevChart"></canvas></div>
           </div>
         </div>
 
