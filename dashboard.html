@@ -22,15 +22,12 @@
     .wordmark { font-size: 13px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: #185FA5; flex-shrink: 0; }
     .page-title { font-size: 18px; font-weight: 500; color: #1a1a18; line-height: 1.2; }
     .page-sub { font-size: 11px; color: #73726c; margin-top: 3px; }
-    .period-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
-    .tab-group { display: flex; flex-direction: column; gap: 4px; }
-    .tab-group-months { display: flex; gap: 4px; flex-wrap: wrap; }
+    .period-tabs { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
     .tab-btn { font-size: 12px; padding: 7px 14px; border-radius: 6px; border: 1px solid #d3d1c7; cursor: pointer; background: #fff; color: #73726c; font-family: inherit; transition: all 0.15s; white-space: nowrap; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .tab-btn:hover { border-color: #185FA5; color: #185FA5; }
     .tab-btn.active { background: #185FA5; color: #fff; border-color: #185FA5; }
-    .tab-btn.ytd { background: #1a1a18; color: #f5f4f0; border-color: #1a1a18; font-size: 11px; }
-    .tab-btn.ytd.active { background: #185FA5; border-color: #185FA5; }
-    .tab-btn.month-sub { font-size: 11px; padding: 5px 10px; }
+    .period-select { font-size: 13px; padding: 7px 12px; border-radius: 6px; border: 1.5px solid #185FA5; background: #fff; color: #1a1a18; font-family: inherit; cursor: pointer; outline: none; font-weight: 500; }
+    .period-select:focus { border-color: #185FA5; box-shadow: 0 0 0 3px rgba(24,95,165,0.12); }
     .section-header { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #888780; margin-bottom: 0.875rem; padding-bottom: 0.5rem; border-bottom: 1px solid #d3d1c7; }
     .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 1.25rem; }
     .metric-card { background: #fff; border-radius: 10px; padding: 0.75rem 0.875rem; border: 1px solid #e8e7e1; }
@@ -203,52 +200,60 @@ function renderTabs(fyGroups) {
   const container = document.getElementById('period-tabs');
   container.innerHTML = '';
 
-  Object.entries(fyGroups).sort().forEach(([fy, months]) => {
-    const group = document.createElement('div');
-    group.className = 'tab-group';
-
-    const fyEnd = +fy + 1;
-    const ytdBtn = document.createElement('button');
-    ytdBtn.className = 'tab-btn ytd';
-    ytdBtn.textContent = `FY${String(fy).slice(2)}–${String(fyEnd).slice(2)} YTD`;
-    ytdBtn.dataset.type = 'ytd';
-    ytdBtn.dataset.fy   = fy;
-    ytdBtn.addEventListener('click', () => selectPeriod({ type: 'ytd', fyYear: +fy }));
-    group.appendChild(ytdBtn);
-
-    const monthRow = document.createElement('div');
-    monthRow.className = 'tab-group-months';
-    months.forEach(({ year, month }) => {
-      const btn = document.createElement('button');
-      btn.className = 'tab-btn month-sub';
-      btn.textContent = `${MONTH_NAMES[month-1]} ${year}`;
-      btn.dataset.type  = 'month';
-      btn.dataset.year  = year;
-      btn.dataset.month = month;
-      btn.dataset.fy    = fy;
-      btn.addEventListener('click', () => selectPeriod({ type: 'month', year: +year, month: +month, fyYear: +fy }));
-      monthRow.appendChild(btn);
-    });
-    group.appendChild(monthRow);
-    container.appendChild(group);
+  // Dropdown for period selection
+  const sel = document.createElement('select');
+  sel.className = 'period-select';
+  sel.id = 'period-select';
+  sel.addEventListener('change', () => {
+    const val = sel.value;
+    if (val === 'pace' || val === 'inquiries') {
+      selectPeriod({ type: val });
+      return;
+    }
+    const [type, ...rest] = val.split('|');
+    if (type === 'ytd') {
+      selectPeriod({ type: 'ytd', fyYear: +rest[0] });
+    } else {
+      selectPeriod({ type: 'month', year: +rest[0], month: +rest[1], fyYear: +rest[2] });
+    }
   });
 
-  const spacer = document.createElement('span');
-  spacer.style.cssText = 'flex:1;';
-  container.appendChild(spacer);
+  Object.entries(fyGroups).sort().forEach(([fy, months]) => {
+    const fyEnd = +fy + 1;
+    const grp = document.createElement('optgroup');
+    grp.label = `FY${String(fy).slice(2)}\u2013${String(fyEnd).slice(2)}`;
 
+    const ytdOpt = document.createElement('option');
+    ytdOpt.value = `ytd|${fy}`;
+    ytdOpt.textContent = `FY${String(fy).slice(2)}\u2013${String(fyEnd).slice(2)} YTD`;
+    grp.appendChild(ytdOpt);
+
+    months.forEach(({ year, month }) => {
+      const opt = document.createElement('option');
+      opt.value = `month|${year}|${month}|${fy}`;
+      opt.textContent = `${MONTH_NAMES[month-1]} ${year}`;
+      grp.appendChild(opt);
+    });
+
+    sel.appendChild(grp);
+  });
+
+  container.appendChild(sel);
+
+  // Booking Pace button
   const paceBtn = document.createElement('button');
   paceBtn.className = 'tab-btn';
-  paceBtn.textContent = '📈 Booking Pace';
-  paceBtn.dataset.type = 'pace';
+  paceBtn.id = 'pace-tab-btn';
+  paceBtn.textContent = '\u{1F4C8} Booking Pace';
   paceBtn.style.cssText = 'background:#1a1a18;color:#f5f4f0;border-color:#1a1a18;';
   paceBtn.addEventListener('click', () => selectPeriod({ type: 'pace' }));
   container.appendChild(paceBtn);
 
+  // Inquiries button
   const inqBtn = document.createElement('button');
   inqBtn.className = 'tab-btn';
-  inqBtn.textContent = '🔍 Inquiries';
-  inqBtn.dataset.type = 'inquiries';
+  inqBtn.id = 'inq-tab-btn';
+  inqBtn.textContent = '\u{1F50D} Inquiries';
   inqBtn.style.cssText = 'background:#1D5C3A;color:#f5f4f0;border-color:#1D5C3A;';
   inqBtn.addEventListener('click', () => selectPeriod({ type: 'inquiries' }));
   container.appendChild(inqBtn);
@@ -256,23 +261,31 @@ function renderTabs(fyGroups) {
 
 function selectPeriod(period) {
   activePeriod = period;
-  document.querySelectorAll('#period-tabs .tab-btn').forEach(btn => {
-    btn.classList.remove('active');
-    const match = period.type === 'month'
-      ? btn.dataset.type === 'month' && +btn.dataset.year === period.year && +btn.dataset.month === period.month
-      : period.type === 'ytd'
-      ? btn.dataset.type === 'ytd' && +btn.dataset.fy === period.fyYear
-      : btn.dataset.type === period.type;
-    if (match) btn.classList.add('active');
-  });
 
-  document.getElementById('perf-view').style.display       = period.type === 'month' || period.type === 'ytd' ? '' : 'none';
+  // Sync dropdown value
+  const sel = document.getElementById('period-select');
+  if (sel) {
+    if (period.type === 'month') {
+      sel.value = `month|${period.year}|${period.month}|${period.fyYear}`;
+    } else if (period.type === 'ytd') {
+      sel.value = `ytd|${period.fyYear}`;
+    }
+  }
+
+  // Sync pace/inquiries button active state
+  const paceBtn = document.getElementById('pace-tab-btn');
+  const inqBtn  = document.getElementById('inq-tab-btn');
+  if (paceBtn) paceBtn.style.background = period.type === 'pace'       ? '#185FA5' : '#1a1a18';
+  if (inqBtn)  inqBtn.style.background  = period.type === 'inquiries'  ? '#185FA5' : '#1D5C3A';
+
+  // Toggle views
+  document.getElementById('perf-view').style.display       = (period.type === 'month' || period.type === 'ytd') ? '' : 'none';
   document.getElementById('pace-view').style.display       = period.type === 'pace'       ? '' : 'none';
   document.getElementById('inquiries-view').style.display  = period.type === 'inquiries'  ? '' : 'none';
 
-  if (period.type === 'pace')       renderPace();
-  else if (period.type === 'inquiries') renderInquiries();
-  else renderDashboard(period);
+  if (period.type === 'pace')            renderPace();
+  else if (period.type === 'inquiries')  renderInquiries();
+  else                                   renderDashboard(period);
 }
 
 // Aggregate property stats for a period
