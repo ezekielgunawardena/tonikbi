@@ -104,10 +104,42 @@
       <div class="page-sub">Actuals vs budget — revenue, room nights, ARR, occupancy</div>
     </div>
     <div class="wordmark">Tonik</div>
-    <a href="admin.html" style="font-size:11px;font-weight:500;color:#185FA5;text-decoration:none;background:#fff;border:1px solid #d3d1c7;padding:6px 12px;border-radius:6px;display:flex;align-items:center;gap:5px;flex-shrink:0;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Admin
-    </a>
+    <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      <button onclick="showExportModal()" style="font-size:11px;font-weight:500;color:#1D9E75;text-decoration:none;background:#fff;border:1px solid #d3d1c7;padding:6px 12px;border-radius:6px;display:flex;align-items:center;gap:5px;cursor:pointer;font-family:inherit;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <a href="admin.html" style="font-size:11px;font-weight:500;color:#185FA5;text-decoration:none;background:#fff;border:1px solid #d3d1c7;padding:6px 12px;border-radius:6px;display:flex;align-items:center;gap:5px;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Admin
+      </a>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e8e7e1;">
+        <div style="font-size:14px;font-weight:600;color:#1a1a18;">Export data</div>
+        <button onclick="closeExportModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#73726c;line-height:1;">✕</button>
+      </div>
+      <div style="padding:1.5rem;">
+        <p style="font-size:12px;color:#73726c;margin-bottom:1.25rem;">Choose what to export. Files download in the same CSV format used for uploads — ready to audit or re-upload.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button onclick="exportData('property')" style="font-family:inherit;font-size:13px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #e8e7e1;background:#f9f8f5;color:#1a1a18;cursor:pointer;text-align:left;">
+            📊 Property stats — all months
+            <div style="font-size:11px;color:#73726c;font-weight:400;margin-top:2px;">KAHA, Villa Sayura, Garfield Bungalow, Garfield Cottage</div>
+          </button>
+          <button onclick="exportData('tonik')" style="font-family:inherit;font-size:13px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #e8e7e1;background:#f9f8f5;color:#1a1a18;cursor:pointer;text-align:left;">
+            📈 Portfolio stats — all months
+            <div style="font-size:11px;color:#73726c;font-weight:400;margin-top:2px;">Franchise & Management segments</div>
+          </button>
+          <button onclick="exportData('both')" style="font-family:inherit;font-size:13px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #185FA5;background:#EBF3FC;color:#185FA5;cursor:pointer;text-align:left;">
+            ⬇ Export both as separate files
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="app">
@@ -863,6 +895,65 @@ async function init() {
 }
 
 Chart.register(ChartDataLabels);
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function showExportModal() {
+  const m = document.getElementById('export-modal');
+  m.style.display = 'flex';
+}
+function closeExportModal() {
+  document.getElementById('export-modal').style.display = 'none';
+}
+document.getElementById('export-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeExportModal();
+});
+
+function toCSVRow(vals) {
+  return vals.map(v => (v === null || v === undefined) ? '' : String(v)).join(',');
+}
+
+function downloadCSV(filename, content) {
+  const blob = new Blob([content], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportData(type) {
+  const now = new Date();
+  const ts  = now.toISOString().slice(0,10);
+
+  if (type === 'property' || type === 'both') {
+    const headers = 'property_name,property_type,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
+    const rows = allPropStats
+      .filter(r => r.stat_month !== 99)
+      .sort((a,b) => a.stat_year - b.stat_year || a.stat_month - b.stat_month || a.property_name.localeCompare(b.property_name))
+      .map(r => toCSVRow([
+        r.property_name, r.property_type, r.stat_year, r.stat_month,
+        r.rev_actual, r.rev_budget, r.arr_actual, r.arr_budget,
+        r.rn_actual, r.rn_budget, r.occu_actual, r.occu_budget
+      ]));
+    downloadCSV(`tonik_property_stats_export_${ts}.csv`, headers + '\n' + rows.join('\n'));
+  }
+
+  if (type === 'tonik' || type === 'both') {
+    const headers = 'segment,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget,share_actual,share_budget,villas_actual,villas_budget,rooms_actual,rooms_budget';
+    const rows = allTonikStats
+      .filter(r => r.stat_month !== 99)
+      .sort((a,b) => a.stat_year - b.stat_year || a.stat_month - b.stat_month || a.segment.localeCompare(b.segment))
+      .map(r => toCSVRow([
+        r.segment, r.stat_year, r.stat_month,
+        r.rev_actual, r.rev_budget, r.arr_actual, r.arr_budget,
+        r.rn_actual, r.rn_budget, r.occu_actual, r.occu_budget,
+        r.share_actual, r.share_budget, r.villas_actual, r.villas_budget,
+        r.rooms_actual, r.rooms_budget
+      ]));
+    downloadCSV(`tonik_portfolio_stats_export_${ts}.csv`, headers + '\n' + rows.join('\n'));
+  }
+
+  closeExportModal();
+}
 
 // ── Pace chart ────────────────────────────────────────────────────────────────
 const PACE_PROPERTIES = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
