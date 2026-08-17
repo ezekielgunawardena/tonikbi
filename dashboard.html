@@ -566,7 +566,15 @@ function renderDashboard(period) {
 }
 
 let monthlyMetric = 'revenue';
-let selectedProperties = new Set(['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage']);
+let selectedProperties = new Set(); // populated dynamically after data loads
+
+const PROP_COLOR_PALETTE = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#E06C9F','#2C7BB6','#6BBE45','#888780','#F28E2B'];
+
+function getDynamicProps() {
+  // Read unique property names from loaded data, excluding YTD rows
+  const names = [...new Set(allPropStats.filter(r => r.stat_month !== 99).map(r => r.property_name))].sort();
+  return names;
+}
 
 // Generate all months from Jan 2025 to Dec of current year + 1
 function generateAllMonths() {
@@ -622,10 +630,15 @@ function buildMonthlyPropertyChart() {
   const canvas = document.getElementById('monthlyRevChart');
   if (!canvas) return;
 
-  const PROP_NAMES  = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
-  const PROP_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30'];
+  const PROP_NAMES  = getDynamicProps();
+  const PROP_COLORS = PROP_NAMES.map((_, i) => PROP_COLOR_PALETTE[i % PROP_COLOR_PALETTE.length]);
   const isRev = monthlyMetric === 'revenue';
   const isOcc = monthlyMetric === 'occupancy';
+
+  // Re-initialise selection if stale
+  if (selectedProperties.size === 0 || ![...selectedProperties].some(p => PROP_NAMES.includes(p))) {
+    selectedProperties = new Set(PROP_NAMES);
+  }
 
   // Current window of months
   const windowMonths = ALL_MONTHS.slice(monthWindowStart, monthWindowStart + WINDOW_SIZE);
