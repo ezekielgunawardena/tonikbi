@@ -351,24 +351,51 @@
 
       <!-- PACE TAB -->
       <div id="tab-pace" style="display:none;">
-        <div class="section-header">Enter weekly booking pace</div>
-        <div class="settings-card">
-          <p class="settings-hint" style="margin-bottom:1rem;">Enter the week label (e.g. "15 Jun – 21 Jun"), the week start date, and room nights booked per property.</p>
-          <div class="settings-row" style="margin-bottom:1rem;">
-            <div class="field" style="flex:2;">
-              <label for="pace-week-label">Week label</label>
-              <input type="text" id="pace-week-label" placeholder="e.g. 15 Jun – 21 Jun" />
+
+        <div style="display:flex;gap:8px;margin-bottom:1.5rem;">
+          <button class="btn btn-primary" id="pace-mode-csv-btn" onclick="setPaceMode('csv')">&#128194; CSV Upload</button>
+          <button class="btn btn-secondary" id="pace-mode-manual-btn" onclick="setPaceMode('manual')">&#9999; Manual Entry</button>
+        </div>
+
+        <div id="pace-csv">
+          <div class="section-header">Upload weekly pace via CSV</div>
+          <div class="settings-card">
+            <p class="settings-hint" style="margin-bottom:1rem;">Download the template, fill in room nights per property for each week, then upload. Multiple weeks can be included in one file.</p>
+            <div style="margin-bottom:1.25rem;">
+              <button class="btn btn-secondary" onclick="downloadPaceTemplate()">&#11015; Download pace template</button>
             </div>
-            <div class="field" style="flex:1;">
-              <label for="pace-week-start">Week start date</label>
-              <input type="date" id="pace-week-start" />
+            <div class="section-subheader" style="margin-bottom:0.5rem;">Upload CSV</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field">
+                <label for="pace-csv-file">CSV file</label>
+                <input type="file" id="pace-csv-file" accept=".csv" style="font-size:12px;padding:5px 8px;" />
+              </div>
+              <button class="btn btn-primary" onclick="uploadPaceCSV()">Upload &amp; save</button>
             </div>
-            <div class="field">
-              <label>&nbsp;</label>
-              <button class="btn btn-secondary" onclick="loadPaceWeek()">Load</button>
-            </div>
+            <div id="pace-csv-preview" style="margin-top:1.25rem;"></div>
           </div>
-          <div id="pace-entry-form"></div>
+        </div>
+
+        <div id="pace-manual" style="display:none;">
+          <div class="section-header">Enter weekly booking pace</div>
+          <div class="settings-card">
+            <p class="settings-hint" style="margin-bottom:1rem;">Enter the week label, the week start date, and room nights booked per property.</p>
+            <div class="settings-row" style="margin-bottom:1rem;">
+              <div class="field" style="flex:2;">
+                <label for="pace-week-label">Week label</label>
+                <input type="text" id="pace-week-label" placeholder="e.g. 15 Jun – 21 Jun" />
+              </div>
+              <div class="field" style="flex:1;">
+                <label for="pace-week-start">Week start date</label>
+                <input type="date" id="pace-week-start" />
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <button class="btn btn-secondary" onclick="loadPaceWeek()">Load</button>
+              </div>
+            </div>
+            <div id="pace-entry-form"></div>
+          </div>
         </div>
 
         <div class="section-header" style="margin-top:1.5rem;">Recent weeks</div>
@@ -692,23 +719,29 @@ function setEntryMode(mode) {
 }
 
 function downloadPropertyTemplate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
   const headers = 'property_name,property_type,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
   const example = [
-    'KAHA,Management,2026,7,1250000,1080000,125000,120000,10,9,33,30',
-    'Villa Sayura,Management,2026,7,680000,630000,34000,105000,8,6,38,20',
-    'Garfield Bungalow,Franchise,2026,7,950000,1000000,19000,19077,12,15,48,50',
-    'Garfield Cottage,Franchise,2026,7,880000,1000000,18500,19077,11,15,45,50',
+    `KAHA,Management,${y},${m},0,1080000,0,120000,0,9,0,30`,
+    `Villa Sayura,Management,${y},${m},0,630000,0,105000,0,6,0,20`,
+    `Garfield Bungalow,Franchise,${y},${m},0,1000000,0,19077,0,15,0,50`,
+    `Garfield Cottage,Franchise,${y},${m},0,1000000,0,19077,0,15,0,50`,
   ].join('\n');
-  downloadCSVFile('tonik_property_stats_template.csv', headers + '\n' + example);
+  downloadCSVFile(`tonik_property_stats_${y}_${String(m).padStart(2,'0')}.csv`, headers + '\n' + example);
 }
 
 function downloadTonikTemplate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
   const headers = 'segment,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget,share_actual,share_budget,villas_actual,villas_budget,rooms_actual,rooms_budget';
   const example = [
-    'Franchise,2026,7,1830000,7556250,95000,95384,19,75,51,50,329400,1360125,2,5,0,0',
-    'Management,2026,7,1930000,5810805,40000,41230,48,450,32,32,0,0,6,15,180,450',
+    `Franchise,${y},${m},0,7556250,0,95384,0,75,0,50,0,1360125,0,5,0,0`,
+    `Management,${y},${m},0,5810805,0,41230,0,450,0,32,0,0,0,15,0,450`,
   ].join('\n');
-  downloadCSVFile('tonik_portfolio_stats_template.csv', headers + '\n' + example);
+  downloadCSVFile(`tonik_portfolio_stats_${y}_${String(m).padStart(2,'0')}.csv`, headers + '\n' + example);
 }
 
 function downloadCSVFile(filename, content) {
@@ -720,7 +753,7 @@ function downloadCSVFile(filename, content) {
 }
 
 function parseUploadedCSV(text) {
-  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.trim().split('\n').map(l => l.trim().replace(/\r/g, '')).filter(Boolean);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
   return lines.slice(1).map(line => {
     const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
@@ -1043,6 +1076,96 @@ async function confirmZero() {
   const stored = localStorage.getItem('tonik_properties');
   if (stored) { const props=JSON.parse(stored); PROPERTIES.length=0; props.forEach(p=>PROPERTIES.push(p)); }
 })();
+
+// ── Pace CSV ──────────────────────────────────────────────────────────────────
+function setPaceMode(mode) {
+  document.getElementById('pace-csv').style.display    = mode === 'csv'    ? '' : 'none';
+  document.getElementById('pace-manual').style.display = mode === 'manual' ? '' : 'none';
+  document.getElementById('pace-mode-csv-btn').className    = mode === 'csv'    ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('pace-mode-manual-btn').className = mode === 'manual' ? 'btn btn-primary' : 'btn btn-secondary';
+}
+
+function downloadPaceTemplate() {
+  const now = new Date();
+  // Generate next 4 weeks as example rows
+  const rows = [];
+  for (let i = 0; i < 4; i++) {
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - now.getDay() + 1 + (i * 7));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const fmt = d => d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'short' });
+    const label = fmt(mon) + ' – ' + fmt(sun);
+    const startStr = mon.toISOString().slice(0, 10);
+    rows.push(`${label},${startStr},0,0,0,0`);
+  }
+  const headers = 'week_label,week_start,KAHA,Villa Sayura,Garfield Bungalow,Garfield Cottage';
+  downloadCSVFile('tonik_pace_template.csv', headers + '\n' + rows.join('\n'));
+}
+
+async function uploadPaceCSV() {
+  const file    = document.getElementById('pace-csv-file').files[0];
+  const preview = document.getElementById('pace-csv-preview');
+  if (!file) { showToast('Please select a CSV file.', true); return; }
+
+  const text = await file.text();
+  const rows = parseUploadedCSV(text);
+  if (!rows.length) { showToast('No data found in CSV.', true); return; }
+
+  // Validate required columns
+  const required = ['week_label', 'week_start'];
+  const missing = required.filter(k => !(k in rows[0]));
+  if (missing.length) { showToast('Missing columns: ' + missing.join(', '), true); return; }
+
+  preview.innerHTML = `<div style="font-size:12px;color:#73726c;margin-bottom:0.75rem;">${rows.length} week(s) found — previewing first 5:</div>
+    <div class="table-scroll"><table class="data-table" style="min-width:unset;">
+      <thead><tr>${Object.keys(rows[0]).map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows.slice(0,5).map(r=>`<tr>${Object.values(r).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:1rem;display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-primary" onclick="confirmPaceUpload()">&#10003; Confirm &amp; save ${rows.length} week(s)</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('pace-csv-preview').innerHTML=''">Cancel</button>
+    </div>`;
+
+  window._pendingPaceRows = rows;
+}
+
+async function confirmPaceUpload() {
+  const rows = window._pendingPaceRows;
+  const preview = document.getElementById('pace-csv-preview');
+  if (!rows?.length) return;
+
+  preview.innerHTML = '<div style="font-size:12px;color:#73726c;">Saving…</div>';
+
+  try {
+    const upserts = [];
+    rows.forEach(r => {
+      PACE_PROPS.forEach(prop => {
+        const rn = parseInt(r[prop] || r[prop.toLowerCase()] || 0) || 0;
+        upserts.push({
+          week_label:    r.week_label,
+          week_start:    r.week_start,
+          property_name: prop,
+          room_nights:   rn,
+        });
+      });
+    });
+
+    const { error } = await sb.from('pace_stats').upsert(upserts, { onConflict: 'week_start,property_name' });
+    if (error) throw new Error(error.message);
+
+    preview.innerHTML = `<div style="background:#e6f6f1;border:1px solid #9FE1CB;border-radius:8px;padding:0.875rem 1rem;font-size:12px;color:#0F6E56;">
+      ✓ ${rows.length} week(s) saved successfully.
+    </div>`;
+    document.getElementById('pace-csv-file').value = '';
+    window._pendingPaceRows = null;
+    showToast(`${rows.length} week(s) saved ✓`);
+    loadPaceRecent();
+
+  } catch(e) {
+    preview.innerHTML = `<div style="color:#993C1D;font-size:12px;">Error: ${e.message}</div>`;
+    showToast('Upload failed: ' + e.message, true);
+  }
+}
 
 // ── Pace ──────────────────────────────────────────────────────────────────────
 const PACE_PROPS = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
