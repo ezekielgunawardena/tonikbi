@@ -433,11 +433,60 @@ function destroyCharts() {
   charts = {};
 }
 
+let activePropFilter = 'all';
+
+function applyPropFilter() {
+  activePropFilter = document.getElementById('prop-filter')?.value || 'all';
+  if (activePeriod) renderDashboard(activePeriod);
+}
+
+function getLYPeriod(period) {
+  if (period.type === 'month') {
+    // Same month last FY (one year back)
+    const lyYear = period.year - 1;
+    return { type: 'month', year: lyYear, month: period.month, fyYear: fyKey(lyYear, period.month) };
+  } else {
+    // YTD last FY
+    return { type: 'ytd', fyYear: period.fyYear - 1 };
+  }
+}
+
 function renderDashboard(period) {
-  const props   = getPropData(period);
+  // Populate property filter dropdown
+  const filterSel = document.getElementById('prop-filter');
+  if (filterSel && filterSel.options.length <= 1) {
+    const propNames = [...new Set(allPropStats.filter(r=>r.stat_month!==99).map(r=>r.property_name))].sort();
+    propNames.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      filterSel.appendChild(opt);
+    });
+    filterSel.value = activePropFilter;
+  }
+
+  let props = getPropData(period);
+
+  // Apply property filter
+  if (activePropFilter !== 'all') {
+    props = props.filter(p => p.name === activePropFilter);
+  }
+
   const tonikSegs = getTonikData(period);
   const franchise  = tonikSegs['franchise']  || {};
   const management = tonikSegs['management'] || {};
+
+  // Last year data
+  const lyPeriod = getLYPeriod(period);
+  let lyProps = getPropData(lyPeriod);
+  if (activePropFilter !== 'all') lyProps = lyProps.filter(p => p.name === activePropFilter);
+  const lyTonik = getTonikData(lyPeriod);
+  const lyFranchise  = lyTonik['franchise']  || {};
+  const lyManagement = lyTonik['management'] || {};
+
+  const lyTotRevA   = lyProps.reduce((s,p)=>s+p.revA, 0);
+  const lyTotRnA    = lyProps.reduce((s,p)=>s+p.rnA,  0);
+  const lyTotArrA   = lyTotRnA > 0 ? lyTotRevA/lyTotRnA : 0;
+  const lyAvgOccuA  = lyProps.length ? lyProps.reduce((s,p)=>s+p.occuA,0)/lyProps.length : 0;
 
   const totA = props.reduce((s,p) => s+p.revA, 0);
   const totB = props.reduce((s,p) => s+p.revB, 0);
@@ -450,10 +499,10 @@ function renderDashboard(period) {
 
   // ── Summary metric cards
   const propCards = [
-    { label:'Total revenue', a:'LKR '+fmt(totA), b:'Bgt: LKR '+fmt(totB), va:totA, vb:totB, occu:false },
-    { label:'Room nights', a:fmt(rnA), b:'Bgt: '+fmt(rnB), va:rnA, vb:rnB, occu:false },
-    { label:'Blended ARR', a:'LKR '+fmt(arrA)+' (USD '+fmt(Math.round(arrA/USD_RATE))+')', b:'Bgt: LKR '+fmt(arrB)+' (USD '+fmt(Math.round(arrB/USD_RATE))+')', va:arrA, vb:arrB, occu:false },
-    { label:'Avg occupancy', a:fmtPct(avgOA), b:'Bgt: '+fmtPct(avgOB), va:avgOA, vb:avgOB, occu:true },
+    { label:'Total revenue', a:'LKR '+fmt(totA), b:'Bgt: LKR '+fmt(totB), va:totA, vb:totB, lya:lyTotRevA, occu:false },
+    { label:'Room nights', a:fmt(rnA), b:'Bgt: '+fmt(rnB), va:rnA, vb:rnB, lya:lyTotRnA, occu:false },
+    { label:'Blended ARR', a:'LKR '+fmt(arrA)+' (USD '+fmt(Math.round(arrA/USD_RATE))+')', b:'Bgt: LKR '+fmt(arrB)+' (USD '+fmt(Math.round(arrB/USD_RATE))+')', va:arrA, vb:arrB, lya:lyTotArrA, occu:false },
+    { label:'Avg occupancy', a:fmtPct(avgOA), b:'Bgt: '+fmtPct(avgOB), va:avgOA, vb:avgOB, lya:lyAvgOccuA, occu:true },
   ];
 
   const tRevA = (franchise.revA||0)+(management.revA||0);
@@ -465,20 +514,39 @@ function renderDashboard(period) {
   const tOA   = ((franchise.occuA||0)+(management.occuA||0))/2;
   const tOB   = ((franchise.occuB||0)+(management.occuB||0))/2;
 
+  const lyTRevA   = (lyFranchise.revA||0)+(lyManagement.revA||0);
+  const lyTShareA = (lyFranchise.shareA||0)+(lyManagement.shareA||0);
+  const lyTRnA    = (lyFranchise.rnA||0)+(lyManagement.rnA||0);
+  const lyTOA     = ((lyFranchise.occuA||0)+(lyManagement.occuA||0))/2;
+
   const tonikCards = [
-    { label:'Portfolio revenue (Franchise + Management)', v:'LKR '+fmt(tRevA), sub:'Budget: LKR '+fmt(tRevB), va:tRevA, vb:tRevB, occu:false },
-    { label:'Tonik Share (Franchise + Management)', v:'LKR '+fmt(tShareA), sub:'Budget: LKR '+fmt(tShareB), va:tShareA, vb:tShareB, occu:false },
-    { label:'Portfolio room nights (Franchise + Management)', v:fmt(tRnA), sub:'Budget: '+fmt(tRnB), va:tRnA, vb:tRnB, occu:false },
-    { label:'Avg portfolio occupancy', v:fmtPct(tOA), sub:'Budget: '+fmtPct(tOB), va:tOA, vb:tOB, occu:true },
-    { label:'Active villas — Franchise', v:(franchise.villasA||0)+' villas', sub:'Budget: '+(franchise.villasB||0), va:franchise.villasA||0, vb:franchise.villasB||0, occu:false },
-    { label:'Active room nights sellable — Management', v:fmt(management.roomsA||0), sub:'Budget: '+fmt(management.roomsB||0), va:management.roomsA||0, vb:management.roomsB||0, occu:false },
+    { label:'Portfolio revenue (Franchise + Management)', v:'LKR '+fmt(tRevA), sub:'Budget: LKR '+fmt(tRevB), va:tRevA, vb:tRevB, lya:lyTRevA, occu:false },
+    { label:'Tonik Share (Franchise + Management)', v:'LKR '+fmt(tShareA), sub:'Budget: LKR '+fmt(tShareB), va:tShareA, vb:tShareB, lya:lyTShareA, occu:false },
+    { label:'Portfolio room nights (Franchise + Management)', v:fmt(tRnA), sub:'Budget: '+fmt(tRnB), va:tRnA, vb:tRnB, lya:lyTRnA, occu:false },
+    { label:'Avg portfolio occupancy', v:fmtPct(tOA), sub:'Budget: '+fmtPct(tOB), va:tOA, vb:tOB, lya:lyTOA, occu:true },
+    { label:'Active villas — Franchise', v:(franchise.villasA||0)+' villas', sub:'Budget: '+(franchise.villasB||0), va:franchise.villasA||0, vb:franchise.villasB||0, lya:null, occu:false },
+    { label:'Active room nights sellable — Management', v:fmt(management.roomsA||0), sub:'Budget: '+fmt(management.roomsB||0), va:management.roomsA||0, vb:management.roomsB||0, lya:null, occu:false },
   ];
 
   const cardHtml = cards => cards.map(c => {
-    const vv = c.occu ? varPctSign(c.va,c.vb) : varSign(c.va,c.vb);
-    const cl = varCls(c.va, c.vb);
+    const vv  = c.occu ? varPctSign(c.va,c.vb) : varSign(c.va,c.vb);
+    const cl  = varCls(c.va, c.vb);
     const val = c.a || c.v;
-    return `<div class="metric-card"><div class="metric-label">${c.label}</div><div class="metric-value">${val}</div><div class="metric-sub">${c.b||c.sub}</div><div class="metric-var ${cl}">${vv} vs budget</div></div>`;
+    // LY comparison
+    let lyHtml = '';
+    if (c.lya !== null && c.lya !== undefined) {
+      const lyDiff = c.va - c.lya;
+      const lyPct  = c.lya > 0 ? ((lyDiff / c.lya) * 100).toFixed(1) : null;
+      const lyGood = lyDiff >= 0;
+      const lyCol  = lyGood ? '#0F6E56' : '#993C1D';
+      const lySign = lyDiff >= 0 ? '+' : '';
+      const lyVal  = c.occu
+        ? lySign + lyDiff.toFixed(1) + 'pp vs LY'
+        : lySign + fmt(Math.round(lyDiff)) + (lyPct !== null ? ' (' + lySign + lyPct + '%)' : '') + ' vs LY';
+      const lyBase = c.lya === 0 ? 'LY: no data' : (c.occu ? 'LY: ' + fmtPct(c.lya) : 'LY: ' + fmt(Math.round(c.lya)));
+      lyHtml = `<div style="font-size:10px;font-weight:600;color:${lyCol};margin-top:2px;">${lyVal}</div><div style="font-size:9px;color:#b4b2a9;">${lyBase}</div>`;
+    }
+    return `<div class="metric-card"><div class="metric-label">${c.label}</div><div class="metric-value">${val}</div><div class="metric-sub">${c.b||c.sub}</div><div class="metric-var ${cl}">${vv} vs budget</div>${lyHtml}</div>`;
   }).join('');
 
   // Property detail table
@@ -746,7 +814,15 @@ async function init() {
 
       <!-- PERFORMANCE VIEW -->
       <div id="perf-view">
-        <div class="section-header">Property performance — actuals vs budget</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:0.875rem;">
+          <div class="section-header" style="margin:0;border:none;padding:0;">Property performance — actuals vs budget</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;color:#888780;">Filter property:</span>
+            <select id="prop-filter" onchange="applyPropFilter()" style="font-size:11px;padding:5px 10px;border:1px solid #d3d1c7;border-radius:6px;background:#fff;color:#1a1a18;font-family:inherit;">
+              <option value="all">All properties</option>
+            </select>
+          </div>
+        </div>
         <div class="metric-grid" id="prop-metrics"></div>
 
         <div class="chart-stack">
