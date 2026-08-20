@@ -972,11 +972,9 @@ async function init() {
 
     renderTabs(fyGroups);
 
-    // Default: most recent month
-    const lastFy    = Object.keys(fyGroups).sort().pop();
-    const lastMonths = fyGroups[lastFy];
-    const last = lastMonths[lastMonths.length - 1];
-    selectPeriod({ type:'month', year:last.year, month:last.month, fyYear:+lastFy });
+    // Default: current financial year YTD
+    const lastFy = Object.keys(fyGroups).sort().pop();
+    selectPeriod({ type: 'ytd', fyYear: +lastFy });
 
   } catch(err) {
     app.innerHTML = `<div class="error-banner">Failed to load data: ${err.message}<br><small>Check your Supabase URL and anon key in the config section.</small></div>`;
