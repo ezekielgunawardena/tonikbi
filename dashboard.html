@@ -501,7 +501,7 @@ function renderDashboard(period) {
   const propCards = [
     { label:'Total revenue', a:'LKR '+fmt(totA), b:'Bgt: LKR '+fmt(totB), va:totA, vb:totB, lya:lyTotRevA, occu:false },
     { label:'Room nights', a:fmt(rnA), b:'Bgt: '+fmt(rnB), va:rnA, vb:rnB, lya:lyTotRnA, occu:false },
-    { label:'Blended ARR', a:'LKR '+fmt(arrA)+' (USD '+fmt(Math.round(arrA/USD_RATE))+')', b:'Bgt: LKR '+fmt(arrB)+' (USD '+fmt(Math.round(arrB/USD_RATE))+')', va:arrA, vb:arrB, lya:lyTotArrA, occu:false },
+    { label:'Blended ADR', a:'LKR '+fmt(arrA)+' (USD '+fmt(Math.round(arrA/USD_RATE))+')', b:'Bgt: LKR '+fmt(arrB)+' (USD '+fmt(Math.round(arrB/USD_RATE))+')', va:arrA, vb:arrB, lya:lyTotArrA, occu:false },
     { label:'Avg occupancy', a:fmtPct(avgOA), b:'Bgt: '+fmtPct(avgOB), va:avgOA, vb:avgOB, lya:lyAvgOccuA, occu:true },
   ];
 
@@ -550,7 +550,7 @@ function renderDashboard(period) {
   }).join('');
 
   // Property detail table
-  const propHeaders = ['Property','Type','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ARR Actual','ARR Budget','Occu Actual','Occu Budget'];
+  const propHeaders = ['Property','Type','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ADR Actual','ADR Budget','Occu Actual','Occu Budget'];
 
   const totalRevA = props.reduce((s,p)=>s+p.revA,0);
   const totalRevB = props.reduce((s,p)=>s+p.revB,0);
@@ -582,7 +582,7 @@ function renderDashboard(period) {
     const cls = r._total ? ' class="total-row"' : '';
     return `<tr${cls}><td>${r.seg}</td><td>LKR ${fmt(r.revA)}</td><td>LKR ${fmt(r.revB)}</td><td class="var-cell ${vc}">${rv>=0?'+':''}${fmt(rv)}</td><td>${fmt(r.rnA)}</td><td>${fmt(r.rnB)}</td><td>LKR ${fmt(r.arrA)}${usd(r.arrA)}</td><td>LKR ${fmt(r.arrB)}${usd(r.arrB)}</td><td>${fmtPct(r.occuA)}</td><td>${fmtPct(r.occuB)}</td><td>LKR ${fmt(r.shareA)}</td><td>LKR ${fmt(r.shareB)}</td></tr>`;
   }).join('');
-  const tonikHeaders = ['Segment','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ARR Actual','ARR Budget','Occu Actual','Occu Budget','Share Actual','Share Budget'];
+  const tonikHeaders = ['Segment','Rev Actual','Rev Budget','Rev Var','RN Actual','RN Budget','ADR Actual','ADR Budget','Occu Actual','Occu Budget','Share Actual','Share Budget'];
 
   document.getElementById('prop-metrics').innerHTML  = cardHtml(propCards);
   document.getElementById('tonik-metrics').innerHTML = cardHtml(tonikCards);
@@ -840,7 +840,7 @@ async function init() {
 
         <div class="chart-stack single">
           <div class="chart-box">
-            <div class="chart-title">ARR by property (LKR)</div>
+            <div class="chart-title">ADR by property (LKR)</div>
             <div class="legend"><span><span class="legend-dot" style="background:#534AB7;"></span>Actual</span><span><span class="legend-dot" style="background:#CECBF6;border:1px solid #534AB7;"></span>Budget</span></div>
             <div class="chart-wrap" style="height:200px;"><canvas id="arrChart"></canvas></div>
           </div>
