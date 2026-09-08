@@ -1210,16 +1210,9 @@ const PACE_PROPS_DEFAULT = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield 
 let PACE_PROPS = [...PACE_PROPS_DEFAULT];
 
 async function loadPaceProps() {
-  // Load from pace_stats distinct property names, fall back to default
-  const { data } = await sb.from('pace_stats').select('property_name');
+  const { data } = await sb.from('property_stats').select('property_name');
   if (data && data.length) {
-    const fromDB = [...new Set(data.map(r => r.property_name))].sort();
-    if (fromDB.length) { PACE_PROPS = fromDB; return; }
-  }
-  // Also check property_stats for all known properties
-  const { data: propData } = await sb.from('property_stats').select('property_name');
-  if (propData && propData.length) {
-    PACE_PROPS = [...new Set(propData.map(r => r.property_name))].sort();
+    PACE_PROPS = [...new Set(data.map(r => r.property_name))].sort();
   }
 }
 
