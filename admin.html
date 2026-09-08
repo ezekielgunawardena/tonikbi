@@ -704,7 +704,7 @@ function showTab(tab) {
 
   if (tab === 'records')  loadAllRecords();
   if (tab === 'settings') loadSettings();
-  if (tab === 'pace')     loadPaceRecent();
+  if (tab === 'pace')     { loadPaceProps().then(() => loadPaceRecent()); }
   if (tab === 'widgets')  loadWidgets();
   if (tab === 'entry' && document.getElementById('entry-form')) loadMonth();
 }
@@ -803,7 +803,9 @@ async function confirmUpload() {
     let upserts, conflict;
 
     if (type === 'property') {
-      upserts = rows.map(r => ({
+      upserts = rows
+        .filter(r => r.property_name && r.stat_year && r.stat_month)
+        .map(r => ({
         property_name: r.property_name,
         property_type: r.property_type,
         stat_year:     parseInt(r.stat_year),
@@ -819,7 +821,9 @@ async function confirmUpload() {
       }));
       conflict = 'property_name,stat_year,stat_month';
     } else {
-      upserts = rows.map(r => ({
+      upserts = rows
+        .filter(r => r.segment && r.stat_year && r.stat_month)
+        .map(r => ({
         segment:       r.segment,
         stat_year:     parseInt(r.stat_year),
         stat_month:    parseInt(r.stat_month),
@@ -1002,7 +1006,14 @@ function getFySetting() { return parseInt(localStorage.getItem('tonik_fy_start')
 async function loadSettings() {
   const props = getProperties();
   document.getElementById('prop-list').innerHTML = props.length
-    ? props.map((p,i) => `<div class="settings-list-item"><span>${p.name}</span><span class="prop-badge">${p.type}</span><button class="btn btn-danger btn-sm" onclick="removeProperty(${i})">Remove</button></div>`).join('')
+    ? props.map((p,i) => `<div class="settings-list-item">
+        <span id="prop-name-${i}">${p.name}</span>
+        <span class="prop-badge">${p.type}</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-secondary btn-sm" onclick="editProperty(${i})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="removeProperty(${i})">Remove</button>
+        </div>
+      </div>`).join('')
     : '<div style="font-size:12px;color:#b4b2a9;">No properties yet.</div>';
   document.getElementById('fy-start').value = getFySetting();
 
@@ -1031,6 +1042,33 @@ function addProperty() {
   props.push({ name, type }); saveProperties(props);
   document.getElementById('new-prop-name').value = '';
   loadSettings(); showToast(`${name} added ✓`);
+}
+
+function editProperty(index) {
+  const props = getProperties();
+  const p = props[index];
+  const item = document.querySelector(`#prop-name-${index}`).parentElement;
+  item.innerHTML = `
+    <input type="text" id="edit-prop-name-${index}" value="${p.name}" style="flex:2;font-size:12px;padding:4px 8px;" />
+    <select id="edit-prop-type-${index}" style="font-size:12px;padding:4px 8px;">
+      <option value="Management" ${p.type==='Management'?'selected':''}>Management</option>
+      <option value="Franchise" ${p.type==='Franchise'?'selected':''}>Franchise</option>
+    </select>
+    <div style="display:flex;gap:4px;">
+      <button class="btn btn-primary btn-sm" onclick="savePropertyEdit(${index})">Save</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadSettings()">Cancel</button>
+    </div>`;
+}
+
+function savePropertyEdit(index) {
+  const props = getProperties();
+  const newName = document.getElementById(`edit-prop-name-${index}`).value.trim();
+  const newType = document.getElementById(`edit-prop-type-${index}`).value;
+  if (!newName) { showToast('Property name cannot be empty.', true); return; }
+  props[index] = { name: newName, type: newType };
+  localStorage.setItem('tonik_properties', JSON.stringify(props));
+  showToast('Property updated ✓');
+  loadSettings();
 }
 
 function removeProperty(index) {
@@ -1168,7 +1206,22 @@ async function confirmPaceUpload() {
 }
 
 // ── Pace ──────────────────────────────────────────────────────────────────────
-const PACE_PROPS = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
+const PACE_PROPS_DEFAULT = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
+let PACE_PROPS = [...PACE_PROPS_DEFAULT];
+
+async function loadPaceProps() {
+  // Load from pace_stats distinct property names, fall back to default
+  const { data } = await sb.from('pace_stats').select('property_name');
+  if (data && data.length) {
+    const fromDB = [...new Set(data.map(r => r.property_name))].sort();
+    if (fromDB.length) { PACE_PROPS = fromDB; return; }
+  }
+  // Also check property_stats for all known properties
+  const { data: propData } = await sb.from('property_stats').select('property_name');
+  if (propData && propData.length) {
+    PACE_PROPS = [...new Set(propData.map(r => r.property_name))].sort();
+  }
+}
 
 async function loadPaceRecent() {
   const el = document.getElementById('pace-recent');
