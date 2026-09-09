@@ -324,19 +324,16 @@ function selectPeriod(period) {
 function getPropData(period) {
   let rows;
   if (period.type === 'month') {
-    // Monthly: exclude YTD flag rows (month=99)
     rows = allPropStats.filter(r => r.stat_year === period.year && r.stat_month === period.month && r.stat_month !== 99);
   } else {
-    // YTD: use the dedicated month=99 rows if they exist, otherwise sum monthly rows
     const ytdRows = allPropStats.filter(r => r.stat_year === period.fyYear && r.stat_month === 99);
     rows = ytdRows.length > 0 ? ytdRows : allPropStats.filter(r => fyKey(r.stat_year, r.stat_month) === period.fyYear && r.stat_month !== 99);
   }
 
-  // Group by property
   const props = {};
   rows.forEach(r => {
     if (!props[r.property_name]) {
-      props[r.property_name] = { name: r.property_name, type: r.property_type, revA:0, revB:0, arrA:null, arrB:null, rnA:0, rnB:0, occuA:0, occuB:0, _count:0 };
+      props[r.property_name] = { name: r.property_name, type: r.property_type, revA:0, revB:0, arrA:null, arrB:null, rnA:0, rnB:0, occuA:0, occuB:0, _days:0, _count:0 };
     }
     const p = props[r.property_name];
     p.revA  += r.rev_actual  || 0;
@@ -345,19 +342,34 @@ function getPropData(period) {
     p.rnB   += r.rn_budget   || 0;
     p.occuA += r.occu_actual || 0;
     p.occuB += r.occu_budget || 0;
-    // Always read ARR directly from stored values
     if (r.arr_actual) p.arrA = r.arr_actual;
     if (r.arr_budget) p.arrB = r.arr_budget;
+    // Accumulate days in period for occupancy denominator
+    if (r.stat_month && r.stat_month !== 99) {
+      const daysInMonth = new Date(r.stat_year, r.stat_month, 0).getDate();
+      p._days += daysInMonth;
+    }
     p._count++;
   });
 
-  return Object.values(props).map(p => ({
-    ...p,
-    arrA: p.arrA !== undefined ? p.arrA : (p.rnA > 0 ? p.revA / p.rnA : 0),
-    arrB: p.arrB !== undefined ? p.arrB : (p.rnB > 0 ? p.revB / p.rnB : 0),
-    occuA: p._count > 0 ? p.occuA / p._count : 0,
-    occuB: p._count > 0 ? p.occuB / p._count : 0,
-  }));
+  return Object.values(props).map(p => {
+    let occuA, occuB;
+    if (period.type === 'month') {
+      // For a single month, use stored values directly
+      occuA = p._count > 0 ? p.occuA / p._count : 0;
+      occuB = p._count > 0 ? p.occuB / p._count : 0;
+    } else {
+      // For YTD: total RN ÷ total days (sellable = 1 unit per day)
+      occuA = p._days > 0 ? (p.rnA / p._days) * 100 : 0;
+      occuB = p._days > 0 ? (p.rnB / p._days) * 100 : 0;
+    }
+    return {
+      ...p,
+      arrA: p.arrA !== undefined ? p.arrA : (p.rnA > 0 ? p.revA / p.rnA : 0),
+      arrB: p.arrB !== undefined ? p.arrB : (p.rnB > 0 ? p.revB / p.rnB : 0),
+      occuA, occuB,
+    };
+  });
 }
 
 // Aggregate tonik stats for a period
