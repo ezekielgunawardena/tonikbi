@@ -1061,8 +1061,12 @@ function exportData(type) {
 }
 
 // ── Pace chart ────────────────────────────────────────────────────────────────
-const PACE_PROPERTIES = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
-const PACE_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30'];
+const PACE_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#E06C9F','#2C7BB6','#888780'];
+
+function getPaceProperties() {
+  const names = [...new Set(allPaceStats.map(r => r.property_name))].sort();
+  return names.length ? names : ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
+}
 let paceChart = null;
 let activePaceProperty = 'Total';
 let activePaceMetric = 'rn';
@@ -1091,6 +1095,7 @@ function renderPace() {
   });
 
   let weeks = Object.entries(weekMap).sort((a,b) => a[0].localeCompare(b[0]));
+  const PACE_PROPERTIES = getPaceProperties();
 
   // Compute totals
   weeks.forEach(([, w]) => {
@@ -1137,7 +1142,7 @@ function renderPace() {
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 32, right: 20, left: 10, bottom: 10 } },
+      layout: { padding: { top: 32, right: 48, left: 10, bottom: 10 } },
       plugins: {
         legend: { display: false },
         datalabels: {
