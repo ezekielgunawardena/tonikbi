@@ -1125,7 +1125,6 @@ function setPaceMode(mode) {
 
 function downloadPaceTemplate() {
   const now = new Date();
-  // Generate next 4 weeks as example rows
   const rows = [];
   for (let i = 0; i < 4; i++) {
     const mon = new Date(now);
@@ -1134,9 +1133,11 @@ function downloadPaceTemplate() {
     const fmt = d => d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'short' });
     const label = fmt(mon) + ' – ' + fmt(sun);
     const startStr = mon.toISOString().slice(0, 10);
-    rows.push(`${label},${startStr},0,0,0,0`);
+    const zeros = PACE_PROPS.map(() => '0,0').join(',');
+    rows.push(`${label},${startStr},${zeros}`);
   }
-  const headers = 'week_label,week_start,KAHA,Villa Sayura,Garfield Bungalow,Garfield Cottage';
+  const propCols = PACE_PROPS.map(p => `rn_${p},rev_${p}`).join(',');
+  const headers = `week_label,week_start,${propCols}`;
   downloadCSVFile('tonik_pace_template.csv', headers + '\n' + rows.join('\n'));
 }
 
@@ -1171,34 +1172,23 @@ async function confirmPaceUpload() {
   const rows = window._pendingPaceRows;
   const preview = document.getElementById('pace-csv-preview');
   if (!rows?.length) return;
-
   preview.innerHTML = '<div style="font-size:12px;color:#73726c;">Saving…</div>';
-
   try {
     const upserts = [];
     rows.forEach(r => {
       PACE_PROPS.forEach(prop => {
-        const rn = parseInt(r[prop] || r[prop.toLowerCase()] || 0) || 0;
-        upserts.push({
-          week_label:    r.week_label,
-          week_start:    r.week_start,
-          property_name: prop,
-          room_nights:   rn,
-        });
+        const rn  = parseInt(r[`rn_${prop}`] || r[prop] || 0) || 0;
+        const rev = parseFloat(r[`rev_${prop}`] || 0) || 0;
+        upserts.push({ week_label: r.week_label, week_start: r.week_start, property_name: prop, room_nights: rn, revenue: rev });
       });
     });
-
     const { error } = await sb.from('pace_stats').upsert(upserts, { onConflict: 'week_start,property_name' });
     if (error) throw new Error(error.message);
-
-    preview.innerHTML = `<div style="background:#e6f6f1;border:1px solid #9FE1CB;border-radius:8px;padding:0.875rem 1rem;font-size:12px;color:#0F6E56;">
-      ✓ ${rows.length} week(s) saved successfully.
-    </div>`;
+    preview.innerHTML = `<div style="background:#e6f6f1;border:1px solid #9FE1CB;border-radius:8px;padding:0.875rem 1rem;font-size:12px;color:#0F6E56;">✓ ${rows.length} week(s) saved successfully.</div>`;
     document.getElementById('pace-csv-file').value = '';
     window._pendingPaceRows = null;
     showToast(`${rows.length} week(s) saved ✓`);
     loadPaceRecent();
-
   } catch(e) {
     preview.innerHTML = `<div style="color:#993C1D;font-size:12px;">Error: ${e.message}</div>`;
     showToast('Upload failed: ' + e.message, true);
@@ -1261,16 +1251,22 @@ async function loadPaceWeekFromDate(weekStart, weekLabel) {
 
   const { data } = await sb.from('pace_stats').select('*').eq('week_start', weekStart);
   const existing = {};
-  (data||[]).forEach(r => existing[r.property_name] = r.room_nights || 0);
+  (data||[]).forEach(r => existing[r.property_name] = { rn: r.room_nights || 0, rev: r.revenue || 0 });
 
   const fi = (prop) => `
     <div class="prop-card" style="padding:0.75rem 1rem;">
       <div class="prop-card-header" style="margin-bottom:0.5rem;">
         <div class="prop-name" style="font-size:12px;">${prop}</div>
       </div>
-      <div class="field">
-        <label>Room nights booked</label>
-        <input type="number" name="${prop}" value="${existing[prop]||0}" min="0" step="1" style="max-width:120px;" />
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="field">
+          <label>Room nights booked</label>
+          <input type="number" name="rn_${prop}" value="${existing[prop]?.rn||0}" min="0" step="1" style="max-width:120px;" />
+        </div>
+        <div class="field">
+          <label>Revenue (LKR)</label>
+          <input type="number" name="rev_${prop}" value="${existing[prop]?.rev||0}" min="0" step="1" style="max-width:160px;" />
+        </div>
       </div>
     </div>`;
 
@@ -1287,8 +1283,15 @@ async function savePaceWeek() {
   if (!label || !start) { showToast('Missing week label or date.', true); return; }
 
   const upserts = PACE_PROPS.map(prop => {
-    const input = document.querySelector(`#pace-entry-form input[name="${prop}"]`);
-    return { week_label: label, week_start: start, property_name: prop, room_nights: input ? +input.value : 0 };
+    const rnInput  = document.querySelector(`#pace-entry-form input[name="rn_${prop}"]`);
+    const revInput = document.querySelector(`#pace-entry-form input[name="rev_${prop}"]`);
+    return {
+      week_label:    label,
+      week_start:    start,
+      property_name: prop,
+      room_nights:   rnInput  ? +rnInput.value  : 0,
+      revenue:       revInput ? +revInput.value : 0,
+    };
   });
 
   const { error } = await sb.from('pace_stats').upsert(upserts, { onConflict: 'week_start,property_name' });

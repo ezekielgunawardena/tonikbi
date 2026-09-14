@@ -911,8 +911,14 @@ async function init() {
         <div class="section-header">Booking pace — weekly room nights by booking created date</div>
         <div class="chart-box" style="margin-bottom:1.25rem;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:0.75rem;">
-            <div class="chart-title" style="margin:0;">Weekly room nights booked</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;" id="pace-toggles"></div>
+            <div class="chart-title" style="margin:0;" id="pace-chart-title">Weekly room nights booked</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <div style="display:flex;gap:4px;">
+                <button id="pace-metric-rn-btn" onclick="setPaceMetric('rn')" style="font-size:10px;padding:4px 10px;border-radius:5px;border:1px solid #185FA5;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit;">Room Nights</button>
+                <button id="pace-metric-rev-btn" onclick="setPaceMetric('revenue')" style="font-size:10px;padding:4px 10px;border-radius:5px;border:1px solid #d3d1c7;background:#fff;color:#73726c;cursor:pointer;font-family:inherit;">Revenue</button>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;" id="pace-toggles"></div>
+            </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;">
             <span style="font-size:11px;color:#888780;">Show weeks:</span>
@@ -1059,30 +1065,44 @@ const PACE_PROPERTIES = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cot
 const PACE_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30'];
 let paceChart = null;
 let activePaceProperty = 'Total';
+let activePaceMetric = 'rn';
+
+function setPaceMetric(metric) {
+  activePaceMetric = metric;
+  const active = 'font-size:10px;padding:4px 10px;border-radius:5px;border:1px solid #185FA5;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit;';
+  const inactive = 'font-size:10px;padding:4px 10px;border-radius:5px;border:1px solid #d3d1c7;background:#fff;color:#73726c;cursor:pointer;font-family:inherit;';
+  document.getElementById('pace-metric-rn-btn').style.cssText  = metric === 'rn'      ? active : inactive;
+  document.getElementById('pace-metric-rev-btn').style.cssText = metric === 'revenue' ? active : inactive;
+  const titleEl = document.getElementById('pace-chart-title');
+  if (titleEl) titleEl.textContent = metric === 'rn' ? 'Weekly room nights booked' : 'Weekly revenue (LKR)';
+  renderPace();
+}
 
 function renderPace() {
   if (!allPaceStats.length) return;
   const rangeVal = document.getElementById('pace-range')?.value || '20';
 
-  // Build week map
+  // Build week map with both room nights and revenue
   const weekMap = {};
   allPaceStats.forEach(r => {
-    if (!weekMap[r.week_start]) weekMap[r.week_start] = { label: r.week_label, props: {} };
-    weekMap[r.week_start].props[r.property_name] = r.room_nights || 0;
+    if (!weekMap[r.week_start]) weekMap[r.week_start] = { label: r.week_label, rn: {}, rev: {} };
+    weekMap[r.week_start].rn[r.property_name]  = r.room_nights || 0;
+    weekMap[r.week_start].rev[r.property_name] = r.revenue     || 0;
   });
 
   let weeks = Object.entries(weekMap).sort((a,b) => a[0].localeCompare(b[0]));
 
-  // Compute total per week
+  // Compute totals
   weeks.forEach(([, w]) => {
-    w.props['Total'] = PACE_PROPERTIES.reduce((s, p) => s + (w.props[p] || 0), 0);
+    w.rn['Total']  = PACE_PROPERTIES.reduce((s, p) => s + (w.rn[p]  || 0), 0);
+    w.rev['Total'] = PACE_PROPERTIES.reduce((s, p) => s + (w.rev[p] || 0), 0);
   });
 
-  // Slice to range
   if (rangeVal !== 'all') weeks = weeks.slice(-parseInt(rangeVal));
 
   const labels = weeks.map(([,w]) => w.label);
-  const data   = weeks.map(([,w]) => w.props[activePaceProperty] || 0);
+  const isRev  = activePaceMetric === 'revenue';
+  const data   = weeks.map(([,w]) => isRev ? (w.rev[activePaceProperty] || 0) : (w.rn[activePaceProperty] || 0));
   const lineColor = activePaceProperty === 'Total' ? '#185FA5' : PACE_COLORS[PACE_PROPERTIES.indexOf(activePaceProperty)];
 
   // Property toggle buttons
@@ -1096,35 +1116,53 @@ function renderPace() {
     }).join('');
   }
 
-  // Render line chart
   if (paceChart) paceChart.destroy();
   paceChart = new Chart(document.getElementById('paceChart'), {
     type: 'line',
     data: { labels, datasets: [{
-      label: activePaceProperty, data,
-      borderColor: lineColor, backgroundColor: lineColor + '18',
-      borderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
-      pointBackgroundColor: lineColor, fill: true, tension: 0.3,
+      label: activePaceProperty,
+      data,
+      borderColor: lineColor,
+      backgroundColor: lineColor + '18',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointBackgroundColor: lineColor,
+      fill: true,
+      tension: 0.3,
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
       layout: { padding: { top: 32, right: 20, left: 10, bottom: 10 } },
       plugins: {
         legend: { display: false },
-        datalabels: { display: true, anchor:'end', align:'top', offset:2, font:{size:9,weight:'600'}, color: lineColor, formatter: v => v === 0 ? '' : v }
+        datalabels: {
+          display: true, anchor: 'end', align: 'top', offset: 2,
+          font: { size: 9, weight: '600' }, color: lineColor,
+          formatter: v => {
+            if (v === 0) return '';
+            if (isRev) return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v;
+            return v;
+          }
+        }
       },
       scales: {
-        x: { ticks: { font:{size:9}, maxRotation:45, autoSkip: weeks.length > 12 } },
-        y: { beginAtZero: true, grace: '15%', ticks: { font:{size:10}, stepSize:5 } }
+        x: { ticks: { font: { size: 9 }, maxRotation: 45, autoSkip: weeks.length > 12 } },
+        y: { beginAtZero: true, grace: '15%', ticks: { font: { size: 10 },
+          callback: v => isRev ? (v >= 1e6 ? 'LKR '+(v/1e6).toFixed(1)+'M' : 'LKR '+(v/1000).toFixed(0)+'K') : v
+        }}
       }
     }
   });
 
   // Render table
   const allProps = ['Total', ...PACE_PROPERTIES];
-  const tableRows = weeks.map(([,w]) =>
-    `<tr><td>${w.label}</td>${allProps.map(p=>`<td>${w.props[p]||0}</td>`).join('')}</tr>`
-  ).join('');
+  const tableRows = weeks.map(([,w]) => {
+    const vals = allProps.map(p => isRev
+      ? (w.rev[p] || 0).toLocaleString('en-US')
+      : (w.rn[p]  || 0));
+    return `<tr><td>${w.label}</td>${vals.map(v=>`<td>${v}</td>`).join('')}</tr>`;
+  }).join('');
   document.getElementById('paceTable').innerHTML =
     `<thead><tr>${['Week',...allProps].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody>`;
 }
