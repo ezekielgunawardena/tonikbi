@@ -1210,26 +1210,29 @@ async function loadPaceRecent() {
   const el = document.getElementById('pace-recent');
   el.innerHTML = '<div class="loading-overlay">Loading…</div>';
   const { data, error } = await sb.from('pace_stats')
-    .select('*').order('week_start', { ascending: false }).limit(70); // last 10 weeks × 7 props
+    .select('*').order('week_start', { ascending: false }).limit(100);
   if (error) { el.innerHTML = `<div style="color:#993C1D;font-size:12px;">${error.message}</div>`; return; }
 
-  // Group by week
   const weeks = {};
   (data||[]).forEach(r => {
-    if (!weeks[r.week_start]) weeks[r.week_start] = { label: r.week_label, props: {} };
-    weeks[r.week_start].props[r.property_name] = r.room_nights;
+    if (!weeks[r.week_start]) weeks[r.week_start] = { label: r.week_label, rn: {}, rev: {} };
+    weeks[r.week_start].rn[r.property_name]  = r.room_nights || 0;
+    weeks[r.week_start].rev[r.property_name] = r.revenue     || 0;
   });
 
   const sorted = Object.entries(weeks).sort((a,b) => b[0].localeCompare(a[0])).slice(0,10);
   if (!sorted.length) { el.innerHTML = '<div class="loading-overlay">No pace records yet.</div>'; return; }
 
   el.innerHTML = '<div class="records-list">' + sorted.map(([ws, w]) => {
-    const total = PACE_PROPS.reduce((s,p) => s + (w.props[p]||0), 0);
-    const details = PACE_PROPS.filter(p => w.props[p] > 0).map(p => `${p}: ${w.props[p]}`).join(' · ');
+    const totalRN  = PACE_PROPS.reduce((s,p) => s + (w.rn[p]  || 0), 0);
+    const totalRev = PACE_PROPS.reduce((s,p) => s + (w.rev[p] || 0), 0);
+    const rnDetails = PACE_PROPS.filter(p => w.rn[p] > 0)
+      .map(p => `${p}: ${w.rn[p]} RN${w.rev[p] > 0 ? ' / LKR '+Math.round(w.rev[p]).toLocaleString('en-US') : ''}`).join(' · ');
+    const revStr = totalRev > 0 ? ` · <span style="color:#1D9E75;font-weight:600;">LKR ${Math.round(totalRev).toLocaleString('en-US')}</span>` : '';
     return `<div class="record-row">
-      <div>
-        <div class="record-info">${w.label} <span style="color:#185FA5;font-weight:600;">Total: ${total} RN</span></div>
-        <div class="record-meta">${details || 'No bookings'}</div>
+      <div style="flex:1;">
+        <div class="record-info">${w.label} <span style="color:#185FA5;font-weight:600;">${totalRN} RN</span>${revStr}</div>
+        <div class="record-meta">${rnDetails || 'No bookings'}</div>
       </div>
       <div class="record-actions">
         <button class="btn btn-secondary btn-sm" onclick="loadPaceWeekFromDate('${ws}','${w.label}')">Edit</button>
