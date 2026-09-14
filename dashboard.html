@@ -1100,21 +1100,25 @@ function renderPace() {
 
   if (rangeVal !== 'all') weeks = weeks.slice(-parseInt(rangeVal));
 
-  const labels = weeks.map(([,w]) => w.label);
-  const isRev  = activePaceMetric === 'revenue';
-  const data   = weeks.map(([,w]) => isRev ? (w.rev[activePaceProperty] || 0) : (w.rn[activePaceProperty] || 0));
-  const lineColor = activePaceProperty === 'Total' ? '#185FA5' : PACE_COLORS[PACE_PROPERTIES.indexOf(activePaceProperty)];
+  const labels   = weeks.map(([,w]) => w.label);
+  const isRev    = activePaceMetric === 'revenue';
+  const lineColor = PACE_COLORS[PACE_PROPERTIES.indexOf(activePaceProperty)] || '#185FA5';
 
-  // Property toggle buttons
+  // Property toggle buttons — no Total, click to toggle on/off
   const tc = document.getElementById('pace-toggles');
   if (tc) {
-    const allProps = ['Total', ...PACE_PROPERTIES];
-    tc.innerHTML = allProps.map((p, i) => {
-      const c = p === 'Total' ? '#1a1a18' : PACE_COLORS[i-1];
+    tc.innerHTML = PACE_PROPERTIES.map((p, i) => {
+      const c = PACE_COLORS[i];
       const active = p === activePaceProperty;
       return `<button onclick="setPaceProperty('${p}')" style="font-size:10px;padding:4px 10px;border-radius:5px;border:1px solid ${active?c:'#d3d1c7'};background:${active?c:'#fff'};color:${active?'#fff':'#73726c'};cursor:pointer;font-family:inherit;transition:all 0.15s;white-space:nowrap;">${p}</button>`;
     }).join('');
   }
+
+  const isTotal = activePaceProperty === 'Total';
+  const data = weeks.map(([,w]) => isTotal
+    ? (isRev ? PACE_PROPERTIES.reduce((s,p)=>s+(w.rev[p]||0),0) : PACE_PROPERTIES.reduce((s,p)=>s+(w.rn[p]||0),0))
+    : (isRev ? (w.rev[activePaceProperty]||0) : (w.rn[activePaceProperty]||0))
+  );
 
   if (paceChart) paceChart.destroy();
   paceChart = new Chart(document.getElementById('paceChart'), {
@@ -1155,20 +1159,20 @@ function renderPace() {
     }
   });
 
-  // Render table
-  const allProps = ['Total', ...PACE_PROPERTIES];
+  // Render table — no Total column
   const tableRows = weeks.map(([,w]) => {
-    const vals = allProps.map(p => isRev
+    const vals = PACE_PROPERTIES.map(p => isRev
       ? (w.rev[p] || 0).toLocaleString('en-US')
       : (w.rn[p]  || 0));
     return `<tr><td>${w.label}</td>${vals.map(v=>`<td>${v}</td>`).join('')}</tr>`;
   }).join('');
   document.getElementById('paceTable').innerHTML =
-    `<thead><tr>${['Week',...allProps].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody>`;
+    `<thead><tr>${['Week',...PACE_PROPERTIES].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody>`;
 }
 
 function setPaceProperty(prop) {
-  activePaceProperty = prop;
+  // Toggle: clicking active property deselects it (shows Total)
+  activePaceProperty = (activePaceProperty === prop) ? 'Total' : prop;
   renderPace();
 }
 
