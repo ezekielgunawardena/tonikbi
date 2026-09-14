@@ -1210,7 +1210,7 @@ async function loadPaceRecent() {
   const el = document.getElementById('pace-recent');
   el.innerHTML = '<div class="loading-overlay">Loading…</div>';
   const { data, error } = await sb.from('pace_stats')
-    .select('*').order('week_start', { ascending: false }).limit(100);
+    .select('*').order('week_start', { ascending: false }).limit(1000);
   if (error) { el.innerHTML = `<div style="color:#993C1D;font-size:12px;">${error.message}</div>`; return; }
 
   const weeks = {};
@@ -1220,7 +1220,7 @@ async function loadPaceRecent() {
     weeks[r.week_start].rev[r.property_name] = r.revenue     || 0;
   });
 
-  const sorted = Object.entries(weeks).sort((a,b) => b[0].localeCompare(a[0])).slice(0,10);
+  const sorted = Object.entries(weeks).sort((a,b) => b[0].localeCompare(a[0]));
   if (!sorted.length) { el.innerHTML = '<div class="loading-overlay">No pace records yet.</div>'; return; }
 
   el.innerHTML = '<div class="records-list">' + sorted.map(([ws, w]) => {
