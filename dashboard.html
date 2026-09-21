@@ -648,7 +648,7 @@ function renderDashboard(period) {
 let monthlyMetric = 'revenue';
 let selectedProperties = new Set(); // populated dynamically after data loads
 
-const PROP_COLOR_PALETTE = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#E06C9F','#2C7BB6','#6BBE45','#888780','#F28E2B'];
+const PROP_COLOR_PALETTE = ['#1E40AF','#0F766E','#15803D','#D4AC0D','#B91C1C','#155E75','#1E40AF','#0F766E','#15803D','#D4AC0D'];
 
 function getDynamicProps() {
   // Read unique property names from loaded data, excluding YTD rows
@@ -1061,7 +1061,7 @@ function exportData(type) {
 }
 
 // ── Pace chart ────────────────────────────────────────────────────────────────
-const PACE_COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#E06C9F','#2C7BB6','#888780'];
+const PACE_COLORS = ['#1E40AF','#0F766E','#15803D','#D4AC0D','#B91C1C','#155E75','#1E40AF','#0F766E'];
 
 function getPaceProperties() {
   const names = [...new Set(allPaceStats.map(r => r.property_name))].sort();
@@ -1286,7 +1286,7 @@ async function renderInquiries() {
       .select('*').eq('active', true).order('sort_order');
 
     if (widgets?.length) {
-      const COLORS = ['#185FA5','#1D9E75','#534AB7','#D85A30','#C9A84C','#888780','#E06C9F','#2C7BB6','#6BBE45','#F28E2B'];
+      const COLORS = ['#1E40AF','#0F766E','#15803D','#D4AC0D','#B91C1C','#155E75','#1E40AF','#0F766E','#15803D','#D4AC0D'];
       const widgetCharts = {};
 
       for (const w of widgets) {
