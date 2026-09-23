@@ -333,9 +333,10 @@ function getPropData(period) {
   const props = {};
   rows.forEach(r => {
     if (!props[r.property_name]) {
-      props[r.property_name] = { name: r.property_name, type: r.property_type, revA:0, revB:0, arrA:null, arrB:null, rnA:0, rnB:0, occuA:0, occuB:0, _days:0, _count:0 };
+      props[r.property_name] = { name: r.property_name, type: r.property_type, revA:0, revB:0, arrA:null, arrB:null, rnA:0, rnB:0, occuA:0, occuB:0, _days:0, _count:0, _sellable:0 };
     }
     const p = props[r.property_name];
+    const rooms = r.rooms || 1;
     p.revA  += r.rev_actual  || 0;
     p.revB  += r.rev_budget  || 0;
     p.rnA   += r.rn_actual   || 0;
@@ -344,10 +345,10 @@ function getPropData(period) {
     p.occuB += r.occu_budget || 0;
     if (r.arr_actual) p.arrA = r.arr_actual;
     if (r.arr_budget) p.arrB = r.arr_budget;
-    // Accumulate days in period for occupancy denominator
     if (r.stat_month && r.stat_month !== 99) {
       const daysInMonth = new Date(r.stat_year, r.stat_month, 0).getDate();
-      p._days += daysInMonth;
+      p._days     += daysInMonth;
+      p._sellable += daysInMonth * rooms; // rooms × days = total sellable room nights
     }
     p._count++;
   });
@@ -355,13 +356,13 @@ function getPropData(period) {
   return Object.values(props).map(p => {
     let occuA, occuB;
     if (period.type === 'month') {
-      // For a single month, use stored values directly
-      occuA = p._count > 0 ? p.occuA / p._count : 0;
-      occuB = p._count > 0 ? p.occuB / p._count : 0;
+      // Monthly: use stored values exactly as entered
+      occuA = p.occuA;
+      occuB = p.occuB;
     } else {
-      // For YTD: total RN ÷ total days (sellable = 1 unit per day)
-      occuA = p._days > 0 ? (p.rnA / p._days) * 100 : 0;
-      occuB = p._days > 0 ? (p.rnB / p._days) * 100 : 0;
+      // YTD: total RN ÷ total sellable room nights (rooms × days)
+      occuA = p._sellable > 0 ? (p.rnA / p._sellable) * 100 : 0;
+      occuB = p._sellable > 0 ? (p.rnB / p._sellable) * 100 : 0;
     }
     return {
       ...p,
@@ -1030,12 +1031,12 @@ function exportData(type) {
   const ts  = now.toISOString().slice(0,10);
 
   if (type === 'property' || type === 'both') {
-    const headers = 'property_name,property_type,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
+    const headers = 'property_name,property_type,stat_year,stat_month,rooms,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
     const rows = allPropStats
       .filter(r => r.stat_month !== 99)
       .sort((a,b) => a.stat_year - b.stat_year || a.stat_month - b.stat_month || a.property_name.localeCompare(b.property_name))
       .map(r => toCSVRow([
-        r.property_name, r.property_type, r.stat_year, r.stat_month,
+        r.property_name, r.property_type, r.stat_year, r.stat_month, r.rooms || 1,
         r.rev_actual, r.rev_budget, r.arr_actual, r.arr_budget,
         r.rn_actual, r.rn_budget, r.occu_actual, r.occu_budget
       ]));
