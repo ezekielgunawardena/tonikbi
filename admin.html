@@ -722,15 +722,14 @@ function downloadPropertyTemplate() {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
-  const headers = 'property_name,property_type,stat_year,stat_month,rooms,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
-  const ROOM_COUNTS = { 'KAHA':4, 'Villa Sayura':2, 'Garfield Bungalow':4, 'Garfield Cottage':3, 'Agni Beach Villa':5, 'Oba Samanga':3 };
+  const headers = 'property_name,property_type,stat_year,stat_month,rev_actual,rev_budget,arr_actual,arr_budget,rn_actual,rn_budget,occu_actual,occu_budget';
   const example = [
-    `KAHA,Management,${y},${m},4,0,1080000,0,120000,0,9,0,30`,
-    `Villa Sayura,Management,${y},${m},2,0,630000,0,105000,0,6,0,20`,
-    `Garfield Bungalow,Franchise,${y},${m},4,0,1000000,0,19077,0,15,0,50`,
-    `Garfield Cottage,Franchise,${y},${m},3,0,1000000,0,19077,0,15,0,50`,
-    `Agni Beach Villa,Management,${y},${m},5,0,1000000,0,19077,0,15,0,25`,
-    `Oba Samanga,Management,${y},${m},3,0,1000000,0,19077,0,15,0,25`,
+    `KAHA,Management,${y},${m},0,1080000,0,120000,0,9,0,30`,
+    `Villa Sayura,Management,${y},${m},0,630000,0,105000,0,6,0,20`,
+    `Garfield Bungalow,Franchise,${y},${m},0,1000000,0,19077,0,15,0,50`,
+    `Garfield Cottage,Franchise,${y},${m},0,1000000,0,19077,0,15,0,50`,
+    `Agni Beach Villa,Management,${y},${m},0,1000000,0,19077,0,15,0,25`,
+    `Oba Samanga,Management,${y},${m},0,1000000,0,19077,0,15,0,25`,
   ].join('\n');
   downloadCSVFile(`tonik_property_stats_${y}_${String(m).padStart(2,'0')}.csv`, headers + '\n' + example);
 }
@@ -813,7 +812,6 @@ async function confirmUpload() {
         property_type: r.property_type,
         stat_year:     parseInt(r.stat_year),
         stat_month:    parseInt(r.stat_month),
-        rooms:         parseInt(r.rooms) || 1,
         rev_actual:    parseFloat(r.rev_actual)  || 0,
         rev_budget:    parseFloat(r.rev_budget)  || 0,
         arr_actual:    parseFloat(r.arr_actual)  || 0,
@@ -1199,6 +1197,14 @@ async function confirmPaceUpload() {
   }
 }
 
+async function deletePaceWeek(weekStart, weekLabel) {
+  if (!confirm(`Delete all pace entries for "${weekLabel}"? This cannot be undone.`)) return;
+  const { error } = await sb.from('pace_stats').delete().eq('week_start', weekStart);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('Week deleted ✓');
+  loadPaceRecent();
+}
+
 // ── Pace ──────────────────────────────────────────────────────────────────────
 const PACE_PROPS_DEFAULT = ['KAHA','Villa Sayura','Garfield Bungalow','Garfield Cottage'];
 let PACE_PROPS = [...PACE_PROPS_DEFAULT];
@@ -1240,6 +1246,7 @@ async function loadPaceRecent() {
       </div>
       <div class="record-actions">
         <button class="btn btn-secondary btn-sm" onclick="loadPaceWeekFromDate('${ws}','${w.label}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePaceWeek('${ws}','${w.label}')">Delete</button>
       </div>
     </div>`;
   }).join('') + '</div>';
